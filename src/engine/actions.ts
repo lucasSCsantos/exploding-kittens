@@ -1,8 +1,8 @@
 // applyAction: turn loop (spec §5), Exploding Kitten resolution (spec §6),
-// and non-combo, non-Nope action card effects (spec §8).
+// Nope reaction stack (spec §7), and non-combo action card effects (spec §8).
 
 import { createRng, shuffle } from "./rng.js";
-import type { Card, CardId, GameState, Player } from "./types.js";
+import type { Card, CardId, GameState, NopeableEffect, PendingNopeableAction, Player } from "./types.js";
 
 export type Action =
   | { type: "DRAW" }
@@ -16,7 +16,9 @@ export type Action =
   | { type: "PLAY_SEE_FUTURE"; cardUid: string }
   | { type: "PLAY_ALTER_FUTURE"; cardUid: string; order: string[] }
   | { type: "PLAY_DRAW_FROM_BOTTOM"; cardUid: string }
-  | { type: "PLAY_CAT"; cardUid: string };
+  | { type: "PLAY_CAT"; cardUid: string }
+  | { type: "PLAY_NOPE"; player: number; cardUid: string }
+  | { type: "PASS_NOPE_WINDOW" };
 
 /** EK and DEF can never be Noped (§6). */
 export function canBeNoped(cardId: CardId): boolean {
@@ -53,6 +55,10 @@ export function applyAction(state: GameState, action: Action): GameState {
       return handlePlayDrawFromBottom(state, action.cardUid);
     case "PLAY_CAT":
       return handlePlayCat();
+    case "PLAY_NOPE":
+      return handlePlayNope(state, action.player, action.cardUid);
+    case "PASS_NOPE_WINDOW":
+      return handlePassNopeWindow(state);
   }
 }
 
@@ -125,6 +131,16 @@ function requireAliveOpponent(state: GameState, target: number): void {
   }
 }
 
+/** §7: moves the played card to discard and opens a Nope window instead of resolving immediately. */
+function openNopeWindow(state: GameState, effect: NopeableEffect): GameState {
+  return {
+    ...state,
+    pendingAction: { type: "NOPEABLE", player: state.currentPlayer, effect },
+    nopeStack: [],
+    phase: "NOPE_WINDOW",
+  };
+}
+
 /** §8.1/§8.2: ends the turn immediately (no draw) and hands turns to `nextIndex`. */
 function resolveAttack(state: GameState, nextIndex: number): GameState {
   const wasUnderAttack = state.turnsRemaining > 1;
@@ -136,34 +152,37 @@ function resolveAttack(state: GameState, nextIndex: number): GameState {
 
 function handlePlayAttack(state: GameState, cardUid: string): GameState {
   const { state: afterPlay } = playCardFromHand(state, "ATK", cardUid);
-  const nextIndex = nextAlivePlayerIndex(afterPlay.players, afterPlay.currentPlayer);
-  return resolveAttack(afterPlay, nextIndex);
+  return openNopeWindow(afterPlay, { kind: "ATTACK" });
 }
 
 function handlePlayTargetedAttack(state: GameState, cardUid: string, target: number): GameState {
   requireAliveOpponent(state, target);
   const { state: afterPlay } = playCardFromHand(state, "TATK", cardUid);
-  return resolveAttack(afterPlay, target);
+  return openNopeWindow(afterPlay, { kind: "TARGETED_ATTACK", target });
 }
 
 /** §8.3: decrementing turns_remaining and re-granting/advancing is exactly endTurn's job. */
 function handlePlaySkip(state: GameState, cardUid: string): GameState {
   const { state: afterPlay } = playCardFromHand(state, "SKIP", cardUid);
-  return endTurn(afterPlay);
+  return openNopeWindow(afterPlay, { kind: "SKIP" });
 }
 
 function handlePlayFavor(state: GameState, cardUid: string, target: number): GameState {
   requireAliveOpponent(state, target);
   const { state: afterPlay } = playCardFromHand(state, "FAV", cardUid);
+  return openNopeWindow(afterPlay, { kind: "FAVOR", target });
+}
 
-  const targetPlayer = afterPlay.players[target]!;
+/** The Favor effect itself (§8.4), applied once the Nope window on it closes without cancellation. */
+function resolveFavorEffect(state: GameState, from: number, target: number): GameState {
+  const targetPlayer = state.players[target]!;
   if (targetPlayer.hand.length === 0) {
-    return afterPlay;
+    return { ...state, phase: "ACTION" };
   }
 
   return {
-    ...afterPlay,
-    pendingAction: { type: "FAVOR", from: afterPlay.currentPlayer, target },
+    ...state,
+    pendingAction: { type: "FAVOR", from, target },
     phase: "FAVOR_RESOLVE",
   };
 }
@@ -195,18 +214,25 @@ function handleResolveFavor(state: GameState, cardUid: string): GameState {
 /** §8.5: reshuffles the deck and invalidates every player's known_deck. */
 function handlePlayShuffle(state: GameState, cardUid: string): GameState {
   const { state: afterPlay } = playCardFromHand(state, "SHUF", cardUid);
+  return openNopeWindow(afterPlay, { kind: "SHUFFLE" });
+}
 
-  const rng = createRng(afterPlay.rngState);
-  const deck = shuffle(afterPlay.deck, rng);
-  const players = afterPlay.players.map((p) => ({ ...p, knownDeck: [] }));
+function resolveShuffleEffect(state: GameState): GameState {
+  const rng = createRng(state.rngState);
+  const deck = shuffle(state.deck, rng);
+  const players = state.players.map((p) => ({ ...p, knownDeck: [] }));
 
-  return { ...afterPlay, deck, players, rngState: rng.getState() };
+  return { ...state, deck, players, rngState: rng.getState(), phase: "ACTION" };
 }
 
 /** §8.6: views deck[0..2] without changing order; only the acting player learns it. */
 function handlePlaySeeFuture(state: GameState, cardUid: string): GameState {
   const { state: afterPlay } = playCardFromHand(state, "STF", cardUid);
-  return { ...afterPlay, players: withKnownTop(afterPlay.players, afterPlay.currentPlayer, afterPlay.deck) };
+  return openNopeWindow(afterPlay, { kind: "SEE_FUTURE" });
+}
+
+function resolveSeeFutureEffect(state: GameState, player: number): GameState {
+  return { ...state, players: withKnownTop(state.players, player, state.deck), phase: "ACTION" };
 }
 
 /** §8.7: views and arbitrarily reorders deck[0..2]; deck size is unchanged. */
@@ -214,17 +240,26 @@ function handlePlayAlterFuture(state: GameState, cardUid: string, order: string[
   const { state: afterPlay } = playCardFromHand(state, "ATF", cardUid);
 
   const viewCount = Math.min(3, afterPlay.deck.length);
-  const viewed = afterPlay.deck.slice(0, viewCount);
-  const viewedUids = new Set(viewed.map((c) => c.uid));
-
+  const viewedUids = new Set(afterPlay.deck.slice(0, viewCount).map((c) => c.uid));
   if (order.length !== viewCount || !order.every((uid) => viewedUids.has(uid))) {
     throw new Error("applyAction: ALTER_FUTURE order must be a permutation of the viewed cards");
   }
 
-  const reordered = order.map((uid) => viewed.find((c) => c.uid === uid)!);
-  const deck = [...reordered, ...afterPlay.deck.slice(viewCount)];
+  return openNopeWindow(afterPlay, { kind: "ALTER_FUTURE", order });
+}
 
-  return { ...afterPlay, deck, players: withKnownTop(afterPlay.players, afterPlay.currentPlayer, deck) };
+function resolveAlterFutureEffect(state: GameState, player: number, order: string[]): GameState {
+  const viewCount = order.length;
+  const viewed = state.deck.slice(0, viewCount);
+  const reordered = order.map((uid) => viewed.find((c) => c.uid === uid)!);
+  const deck = [...reordered, ...state.deck.slice(viewCount)];
+
+  return {
+    ...state,
+    deck,
+    players: withKnownTop(state.players, player, deck),
+    phase: "ACTION",
+  };
 }
 
 /** Refreshes knowledge of deck[0..viewCount) while keeping other known positions (e.g. a tracked reinsertion) intact. */
@@ -239,12 +274,83 @@ function withKnownTop(players: Player[], playerIndex: number, deck: Card[]): Pla
 /** §8.8: ends the turn by drawing deck[len-1] instead of the top card. */
 function handlePlayDrawFromBottom(state: GameState, cardUid: string): GameState {
   const { state: afterPlay } = playCardFromHand(state, "DFB", cardUid);
-  return resolveDraw(afterPlay, afterPlay.deck.length - 1);
+  return openNopeWindow(afterPlay, { kind: "DRAW_FROM_BOTTOM" });
 }
 
 /** §8.9: cat cards (incl. Feral Cat) have no standalone effect — combos land in ticket 07. */
 function handlePlayCat(): never {
   throw new Error("applyAction: cat cards cannot be played standalone, only as part of a combo");
+}
+
+/** Applies a previously-opened Nope window's effect once it resolves without being cancelled (§7). */
+function resolveNopeableEffect(state: GameState, player: number, effect: NopeableEffect): GameState {
+  switch (effect.kind) {
+    case "ATTACK":
+      return resolveAttack(state, nextAlivePlayerIndex(state.players, player));
+    case "TARGETED_ATTACK":
+      return resolveAttack(state, effect.target);
+    case "SKIP":
+      return endTurn(state);
+    case "FAVOR":
+      return resolveFavorEffect(state, player, effect.target);
+    case "SHUFFLE":
+      return resolveShuffleEffect(state);
+    case "SEE_FUTURE":
+      return resolveSeeFutureEffect(state, player);
+    case "ALTER_FUTURE":
+      return resolveAlterFutureEffect(state, player, effect.order);
+    case "DRAW_FROM_BOTTOM":
+      return resolveDraw(state, state.deck.length - 1);
+  }
+}
+
+/** Narrows to the open Nope window's pending action, throwing if none is open. */
+function requireNopeWindow(state: GameState): PendingNopeableAction {
+  if (state.phase !== "NOPE_WINDOW" || state.pendingAction?.type !== "NOPEABLE") {
+    throw new Error("applyAction: no Nope window is open");
+  }
+  return state.pendingAction;
+}
+
+/** §7: any alive player, including the one who played the pending card, may play NOPE while the window is open. */
+function handlePlayNope(state: GameState, playerIndex: number, cardUid: string): GameState {
+  requireNopeWindow(state);
+
+  const player = state.players[playerIndex];
+  if (!player || !player.alive) {
+    throw new Error(`applyAction: player ${playerIndex} cannot play Nope`);
+  }
+
+  const index = player.hand.findIndex((c) => c.uid === cardUid);
+  if (index === -1) {
+    throw new Error(`applyAction: card ${cardUid} is not in player ${playerIndex}'s hand`);
+  }
+  const card = player.hand[index]!;
+  if (card.id !== "NOPE") {
+    throw new Error(`applyAction: card ${cardUid} is ${card.id}, expected NOPE`);
+  }
+
+  const updatedPlayer: Player = { ...player, hand: player.hand.filter((_, i) => i !== index) };
+  const players = replacePlayer(state.players, playerIndex, updatedPlayer);
+
+  return {
+    ...state,
+    players,
+    discard: [...state.discard, card],
+    nopeStack: [...state.nopeStack, { player: playerIndex }],
+  };
+}
+
+/** §7: closes the Nope window — odd nopeStack cancels the pending action, even lets it resolve. */
+function handlePassNopeWindow(state: GameState): GameState {
+  const { player, effect } = requireNopeWindow(state);
+  const cancelled = state.nopeStack.length % 2 === 1;
+  const cleared = { ...state, pendingAction: null, nopeStack: [] };
+
+  if (cancelled) {
+    return { ...cleared, phase: "ACTION" };
+  }
+  return resolveNopeableEffect(cleared, player, effect);
 }
 
 function resolveExplodingKitten(state: GameState, kitten: Card, player: Player): GameState {

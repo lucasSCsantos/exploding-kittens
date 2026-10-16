@@ -246,10 +246,13 @@ describe("applyAction — Attack (§8.1)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    expect(afterPlay.phase).toBe("NOPE_WINDOW");
+    expect(afterPlay.discard.map((c) => c.id)).toEqual(["ATK"]);
+
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.players[0]!.hand).toHaveLength(0);
-    expect(next.discard.map((c) => c.id)).toEqual(["ATK"]);
     expect(next.deck).toHaveLength(1);
     expect(next.currentPlayer).toBe(1);
     expect(next.turnsRemaining).toBe(2);
@@ -264,7 +267,8 @@ describe("applyAction — Attack (§8.1)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.currentPlayer).toBe(2);
   });
@@ -277,7 +281,8 @@ describe("applyAction — Attack (§8.1)", () => {
       turnsRemaining: 3,
     });
 
-    const next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     // 3 turns owed, this one is consumed by playing ATK -> 2 remainder + 2 stacked = 4
     expect(next.turnsRemaining).toBe(4);
@@ -292,7 +297,8 @@ describe("applyAction — Attack (§8.1)", () => {
       turnsRemaining: 3,
     });
 
-    const next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.turnsRemaining).toBe(2);
   });
@@ -317,7 +323,8 @@ describe("applyAction — Targeted Attack (§8.2)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_TARGETED_ATTACK", cardUid: tatk.uid, target: 2 });
+    const afterPlay = applyAction(state, { type: "PLAY_TARGETED_ATTACK", cardUid: tatk.uid, target: 2 });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.currentPlayer).toBe(2);
     expect(next.turnsRemaining).toBe(2);
@@ -331,7 +338,8 @@ describe("applyAction — Targeted Attack (§8.2)", () => {
       turnsRemaining: 2,
     });
 
-    const next = applyAction(state, { type: "PLAY_TARGETED_ATTACK", cardUid: tatk.uid, target: 2 });
+    const afterPlay = applyAction(state, { type: "PLAY_TARGETED_ATTACK", cardUid: tatk.uid, target: 2 });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.turnsRemaining).toBe(3);
   });
@@ -363,7 +371,8 @@ describe("applyAction — Skip (§8.3)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.deck).toHaveLength(1);
     expect(next.currentPlayer).toBe(1);
@@ -378,7 +387,8 @@ describe("applyAction — Skip (§8.3)", () => {
       turnsRemaining: 2,
     });
 
-    const next = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.currentPlayer).toBe(0);
     expect(next.turnsRemaining).toBe(1);
@@ -395,9 +405,12 @@ describe("applyAction — Favor (§8.4)", () => {
       turnsRemaining: 1,
     });
 
-    const afterPlay = applyAction(state, { type: "PLAY_FAVOR", cardUid: fav.uid, target: 1 });
+    const played = applyAction(state, { type: "PLAY_FAVOR", cardUid: fav.uid, target: 1 });
+    expect(played.phase).toBe("NOPE_WINDOW");
+    expect(played.discard.map((c) => c.id)).toEqual(["FAV"]);
+
+    const afterPlay = applyAction(played, { type: "PASS_NOPE_WINDOW" });
     expect(afterPlay.phase).toBe("FAVOR_RESOLVE");
-    expect(afterPlay.discard.map((c) => c.id)).toEqual(["FAV"]);
 
     const resolved = applyAction(afterPlay, { type: "RESOLVE_FAVOR", cardUid: theirCard.uid });
 
@@ -414,7 +427,8 @@ describe("applyAction — Favor (§8.4)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_FAVOR", cardUid: fav.uid, target: 1 });
+    const afterPlay = applyAction(state, { type: "PLAY_FAVOR", cardUid: fav.uid, target: 1 });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.phase).toBe("ACTION");
     expect(next.discard.map((c) => c.id)).toEqual(["FAV"]);
@@ -437,7 +451,8 @@ describe("applyAction — Shuffle (§8.5)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_SHUFFLE", cardUid: shuf.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_SHUFFLE", cardUid: shuf.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.deck.map((c) => c.uid)).not.toEqual(deck.map((c) => c.uid));
     expect(next.deck).toHaveLength(10);
@@ -461,10 +476,11 @@ describe("applyAction — Shuffle (§8.5)", () => {
     expect(afterReinsert.currentPlayer).toBe(0);
     expect(afterReinsert.players[0]!.knownDeck).toHaveLength(1);
 
-    const afterShuffle = applyAction(afterReinsert, {
+    const shuffPlayed = applyAction(afterReinsert, {
       type: "PLAY_SHUFFLE",
       cardUid: shuf.uid,
     });
+    const afterShuffle = applyAction(shuffPlayed, { type: "PASS_NOPE_WINDOW" });
 
     expect(afterShuffle.players[0]!.knownDeck).toHaveLength(0);
   });
@@ -481,7 +497,8 @@ describe("applyAction — See the Future (§8.6)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_SEE_FUTURE", cardUid: stf.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_SEE_FUTURE", cardUid: stf.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.deck.map((c) => c.id)).toEqual(["SKIP", "NOPE", "ATK", "FAV"]);
     expect(next.players[0]!.knownDeck.map((e) => e.card.id)).toEqual(["SKIP", "NOPE", "ATK"]);
@@ -500,7 +517,8 @@ describe("applyAction — See the Future (§8.6)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_SEE_FUTURE", cardUid: stf.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_SEE_FUTURE", cardUid: stf.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.players[0]!.knownDeck.map((e) => e.card.id)).toEqual(["SKIP"]);
   });
@@ -520,7 +538,8 @@ describe("applyAction — See the Future (§8.6)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_SEE_FUTURE", cardUid: stf.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_SEE_FUTURE", cardUid: stf.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.players[0]!.knownDeck).toEqual([
       { position: 0, card: deck[0] },
@@ -544,11 +563,12 @@ describe("applyAction — Alter the Future (§8.7)", () => {
     });
 
     const newOrder = [top3[2]!.uid, top3[0]!.uid, top3[1]!.uid];
-    const next = applyAction(state, {
+    const afterPlay = applyAction(state, {
       type: "PLAY_ALTER_FUTURE",
       cardUid: atf.uid,
       order: newOrder,
     });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.deck.map((c) => c.id)).toEqual(["ATK", "SKIP", "NOPE", "FAV"]);
     expect(next.deck).toHaveLength(4);
@@ -565,11 +585,12 @@ describe("applyAction — Alter the Future (§8.7)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, {
+    const afterPlay = applyAction(state, {
       type: "PLAY_ALTER_FUTURE",
       cardUid: atf.uid,
       order: [two[1]!.uid, two[0]!.uid],
     });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.deck.map((c) => c.id)).toEqual(["NOPE", "SKIP"]);
   });
@@ -602,7 +623,8 @@ describe("applyAction — Draw from the Bottom (§8.8)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_DRAW_FROM_BOTTOM", cardUid: dfb.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_DRAW_FROM_BOTTOM", cardUid: dfb.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.players[0]!.hand.map((c) => c.id)).toEqual(["SKIP"]);
     expect(next.deck.map((c) => c.id)).toEqual(["NOPE", "ATK"]);
@@ -620,10 +642,204 @@ describe("applyAction — Draw from the Bottom (§8.8)", () => {
       turnsRemaining: 1,
     });
 
-    const next = applyAction(state, { type: "PLAY_DRAW_FROM_BOTTOM", cardUid: dfb.uid });
+    const afterPlay = applyAction(state, { type: "PLAY_DRAW_FROM_BOTTOM", cardUid: dfb.uid });
+    const next = applyAction(afterPlay, { type: "PASS_NOPE_WINDOW" });
 
     expect(next.phase).toBe("DEFUSE_REINSERT");
     expect(next.deck.map((c) => c.id)).toEqual(["NOPE"]);
+  });
+});
+
+describe("applyAction — Nope reaction stack (§7)", () => {
+  it("a single Nope cancels the pending action", () => {
+    const skip = card("SKIP");
+    const nope = card("NOPE");
+    const state = baseState({
+      players: [player("a", [skip]), player("b", [nope]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 2,
+    });
+
+    const played = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    expect(played.phase).toBe("NOPE_WINDOW");
+
+    const noped = applyAction(played, { type: "PLAY_NOPE", player: 1, cardUid: nope.uid });
+    const next = applyAction(noped, { type: "PASS_NOPE_WINDOW" });
+
+    // SKIP never took effect: still player 0's turn, still owing the same 2 turns.
+    expect(next.currentPlayer).toBe(0);
+    expect(next.turnsRemaining).toBe(2);
+    expect(next.phase).toBe("ACTION");
+    expect(next.pendingAction).toBeNull();
+  });
+
+  it("Nope-on-Nope (2 total, even) lets the original action resolve", () => {
+    const atk = card("ATK");
+    const nope1 = card("NOPE", "nope1");
+    const nope2 = card("NOPE", "nope2");
+    const state = baseState({
+      players: [player("a", [atk]), player("b", [nope1]), player("c", [nope2])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    let next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 1, cardUid: nope1.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 2, cardUid: nope2.uid });
+    next = applyAction(next, { type: "PASS_NOPE_WINDOW" });
+
+    expect(next.currentPlayer).toBe(1);
+    expect(next.turnsRemaining).toBe(2);
+    expect(next.phase).toBe("ACTION");
+  });
+
+  it("three Nopes (odd) cancels the action", () => {
+    const atk = card("ATK");
+    const nope1 = card("NOPE", "nope1");
+    const nope2 = card("NOPE", "nope2");
+    const nope3 = card("NOPE", "nope3");
+    const state = baseState({
+      players: [
+        player("a", [atk, nope3]),
+        player("b", [nope1]),
+        player("c", [nope2]),
+      ],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    let next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 1, cardUid: nope1.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 2, cardUid: nope2.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 0, cardUid: nope3.uid });
+    next = applyAction(next, { type: "PASS_NOPE_WINDOW" });
+
+    expect(next.currentPlayer).toBe(0);
+    expect(next.turnsRemaining).toBe(1);
+    expect(next.phase).toBe("ACTION");
+  });
+
+  it("sends the cancelled card and all Nopes to discard, never back to a hand", () => {
+    const atk = card("ATK");
+    const nope1 = card("NOPE", "nope1");
+    const nope2 = card("NOPE", "nope2");
+    const nope3 = card("NOPE", "nope3");
+    const state = baseState({
+      players: [
+        player("a", [atk, nope3]),
+        player("b", [nope1]),
+        player("c", [nope2]),
+      ],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    let next = applyAction(state, { type: "PLAY_ATTACK", cardUid: atk.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 1, cardUid: nope1.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 2, cardUid: nope2.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 0, cardUid: nope3.uid });
+    next = applyAction(next, { type: "PASS_NOPE_WINDOW" });
+
+    expect(next.discard.map((c) => c.uid).sort()).toEqual(
+      ["ATK", "nope1", "nope2", "nope3"].sort(),
+    );
+    expect(next.players.every((p) => p.hand.length === 0)).toBe(true);
+  });
+
+  it("a Noped ATK/TATK/SKIP/DFB does not end the turn — the player continues their action phase", () => {
+    const skip = card("SKIP");
+    const nope = card("NOPE");
+    const state = baseState({
+      players: [player("a", [skip]), player("b", [nope]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    let next = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    next = applyAction(next, { type: "PLAY_NOPE", player: 1, cardUid: nope.uid });
+    next = applyAction(next, { type: "PASS_NOPE_WINDOW" });
+
+    expect(next.currentPlayer).toBe(0);
+    expect(next.turnsRemaining).toBe(1);
+    expect(next.phase).toBe("ACTION");
+  });
+
+  it("lets any alive player, including the one who played the card, play Nope", () => {
+    const skip = card("SKIP");
+    const nope = card("NOPE");
+    const state = baseState({
+      players: [player("a", [skip, nope]), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+    const noped = applyAction(played, { type: "PLAY_NOPE", player: 0, cardUid: nope.uid });
+
+    expect(noped.nopeStack).toEqual([{ player: 0 }]);
+  });
+
+  it("rejects an eliminated player playing Nope", () => {
+    const skip = card("SKIP");
+    const nope = card("NOPE");
+    const state = baseState({
+      players: [player("a", [skip]), player("b", [nope], false), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, { type: "PLAY_SKIP", cardUid: skip.uid });
+
+    expect(() =>
+      applyAction(played, { type: "PLAY_NOPE", player: 1, cardUid: nope.uid }),
+    ).toThrow();
+  });
+
+  it("still eliminates a player holding Nope but no Defuse who draws an EK", () => {
+    const state = baseState({
+      deck: [card("EK")],
+      players: [player("a", [card("NOPE")]), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const next = applyAction(state, { type: "DRAW" });
+
+    expect(next.players[0]!.alive).toBe(false);
+    expect(next.players[0]!.hand).toHaveLength(0);
+  });
+
+  it("never opens a Nope window for EK or DEF plays", () => {
+    const state = baseState({
+      deck: [card("EK"), card("SKIP"), card("NOPE", "bystander-nope")],
+      players: [
+        player("a", [card("DEF"), card("NOPE", "actor-nope")]),
+        player("b", [card("NOPE", "bystander-nope2")]),
+        player("c", []),
+      ],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const afterDraw = applyAction(state, { type: "DRAW" });
+    expect(afterDraw.phase).toBe("DEFUSE_REINSERT");
+
+    expect(() =>
+      applyAction(afterDraw, { type: "PLAY_NOPE", player: 1, cardUid: "bystander-nope2" }),
+    ).toThrow();
+  });
+
+  it("rejects playing Nope outside a Nope window", () => {
+    const nope = card("NOPE");
+    const state = baseState({
+      players: [player("a", []), player("b", [nope]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, { type: "PLAY_NOPE", player: 1, cardUid: nope.uid }),
+    ).toThrow();
   });
 });
 

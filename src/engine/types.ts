@@ -81,15 +81,38 @@ export interface PendingFavor {
   target: number;
 }
 
+/** A noppable action card's effect, captured at play time so it can be applied or cancelled once the Nope window closes (spec §7). */
+export type NopeableEffect =
+  | { kind: "ATTACK" }
+  | { kind: "TARGETED_ATTACK"; target: number }
+  | { kind: "SKIP" }
+  | { kind: "FAVOR"; target: number }
+  | { kind: "SHUFFLE" }
+  | { kind: "SEE_FUTURE" }
+  | { kind: "ALTER_FUTURE"; order: string[] }
+  | { kind: "DRAW_FROM_BOTTOM" };
+
+/** Awaiting the Nope window to close on a played action card/combo (spec §7). */
+export interface PendingNopeableAction {
+  type: "NOPEABLE";
+  /** The player whose action phase this play belongs to — unaffected by who Nopes it. */
+  player: number;
+  effect: NopeableEffect;
+}
+
+/** One NOPE play recorded on the stack, in order played (spec §3, §7). */
+export interface NopePlay {
+  player: number;
+}
+
 export interface GameState {
   players: Player[];
   currentPlayer: number;
   turnsRemaining: number;
   deck: Card[];
   discard: Card[];
-  /** No Noped-action pending shapes yet — ticket 06 will add those. */
-  pendingAction: PendingDefuseReinsert | PendingFavor | null;
-  nopeStack: unknown[];
+  pendingAction: PendingDefuseReinsert | PendingFavor | PendingNopeableAction | null;
+  nopeStack: NopePlay[];
   /** Exploding Kittens that eliminated a player: face up, out of play, never reshuffled (§6). */
   explodedKittens: Card[];
   phase: Phase;
