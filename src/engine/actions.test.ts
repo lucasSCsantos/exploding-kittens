@@ -866,3 +866,448 @@ describe("applyAction — Cat cards / Feral Cat (§8.9)", () => {
     expect(() => applyAction(state, { type: "PLAY_CAT", cardUid: feral.uid })).toThrow();
   });
 });
+
+describe("applyAction — Pair combo (§9)", () => {
+  it("takes a random card from the target's hand (seeded RNG)", () => {
+    const cat1 = card("CAT_TACOCAT", "cat1");
+    const cat2 = card("CAT_TACOCAT", "cat2");
+    const targetHand = [card("SKIP"), card("NOPE"), card("SHUF")];
+    const state = baseState({
+      players: [player("a", [cat1, cat2]), player("b", targetHand), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_PAIR",
+      cardUids: [cat1.uid, cat2.uid],
+      target: 1,
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+    expect(played.discard.map((c) => c.id)).toEqual(["CAT_TACOCAT", "CAT_TACOCAT"]);
+    expect(played.players[0]!.hand).toHaveLength(0);
+
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.players[0]!.hand).toHaveLength(1);
+    expect(resolved.players[1]!.hand).toHaveLength(2);
+    // Deterministic for this seed/rngState — pins down the "random, seeded" requirement.
+    const takenId = resolved.players[0]!.hand[0]!.id;
+    expect(targetHand.map((c) => c.id)).toContain(takenId);
+  });
+
+  it("lets Feral Cat stand in for a cat card", () => {
+    const cat = card("CAT_BEARD", "cat");
+    const feral = card("FERAL", "feral");
+    const state = baseState({
+      players: [player("a", [cat, feral]), player("b", [card("SKIP")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_PAIR",
+      cardUids: [cat.uid, feral.uid],
+      target: 1,
+    });
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.players[0]!.hand).toHaveLength(1);
+    expect(resolved.players[1]!.hand).toHaveLength(0);
+  });
+
+  it("rejects two different cat types as a pair", () => {
+    const tacocat = card("CAT_TACOCAT", "taco");
+    const beard = card("CAT_BEARD", "beard");
+    const state = baseState({
+      players: [player("a", [tacocat, beard]), player("b", [card("SKIP")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, { type: "PLAY_PAIR", cardUids: [tacocat.uid, beard.uid], target: 1 }),
+    ).toThrow();
+  });
+
+  it("rejects non-cat pairs under comboScope=cats-only (default)", () => {
+    const skip1 = card("SKIP", "skip1");
+    const skip2 = card("SKIP", "skip2");
+    const state = baseState({
+      players: [player("a", [skip1, skip2]), player("b", [card("NOPE")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, { type: "PLAY_PAIR", cardUids: [skip1.uid, skip2.uid], target: 1 }),
+    ).toThrow();
+  });
+
+  it("allows non-cat pairs under comboScope=any-matching-title", () => {
+    const skip1 = card("SKIP", "skip1");
+    const skip2 = card("SKIP", "skip2");
+    const state = {
+      ...baseState({
+        players: [player("a", [skip1, skip2]), player("b", [card("NOPE")]), player("c", [])],
+        currentPlayer: 0,
+        turnsRemaining: 1,
+      }),
+      config: { ...createGame(["a", "b", "c"], { seed: 1 }).config, comboScope: "any-matching" as const },
+    };
+
+    const played = applyAction(state, {
+      type: "PLAY_PAIR",
+      cardUids: [skip1.uid, skip2.uid],
+      target: 1,
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+  });
+
+  it("rejects two Feral Cats alone under the default feralPairRule", () => {
+    const feral1 = card("FERAL", "feral1");
+    const feral2 = card("FERAL", "feral2");
+    const state = baseState({
+      players: [player("a", [feral1, feral2]), player("b", [card("SKIP")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, { type: "PLAY_PAIR", cardUids: [feral1.uid, feral2.uid], target: 1 }),
+    ).toThrow();
+  });
+
+  it("allows two Feral Cats alone when feralPairRule=allowed", () => {
+    const feral1 = card("FERAL", "feral1");
+    const feral2 = card("FERAL", "feral2");
+    const state = {
+      ...baseState({
+        players: [player("a", [feral1, feral2]), player("b", [card("SKIP")]), player("c", [])],
+        currentPlayer: 0,
+        turnsRemaining: 1,
+      }),
+      config: { ...createGame(["a", "b", "c"], { seed: 1 }).config, feralPairRule: "allowed" as const },
+    };
+
+    const played = applyAction(state, {
+      type: "PLAY_PAIR",
+      cardUids: [feral1.uid, feral2.uid],
+      target: 1,
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+  });
+
+  it("has no effect but still consumes the cards when the target has zero cards", () => {
+    const cat1 = card("CAT_TACOCAT", "cat1");
+    const cat2 = card("CAT_TACOCAT", "cat2");
+    const state = baseState({
+      players: [player("a", [cat1, cat2]), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_PAIR",
+      cardUids: [cat1.uid, cat2.uid],
+      target: 1,
+    });
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.discard.map((c) => c.id)).toEqual(["CAT_TACOCAT", "CAT_TACOCAT"]);
+    expect(resolved.players[1]!.hand).toHaveLength(0);
+  });
+
+  it("rejects playing a pair outside the ACTION phase", () => {
+    const cat1 = card("CAT_TACOCAT", "cat1");
+    const cat2 = card("CAT_TACOCAT", "cat2");
+    const state = baseState({
+      phase: "NOPE_WINDOW",
+      players: [player("a", [cat1, cat2]), player("b", [card("SKIP")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, { type: "PLAY_PAIR", cardUids: [cat1.uid, cat2.uid], target: 1 }),
+    ).toThrow();
+  });
+
+  it("opens a Nope window that can cancel the pair", () => {
+    const cat1 = card("CAT_TACOCAT", "cat1");
+    const cat2 = card("CAT_TACOCAT", "cat2");
+    const nope = card("NOPE");
+    const targetHand = [card("SKIP")];
+    const state = baseState({
+      players: [player("a", [cat1, cat2]), player("b", [...targetHand, nope]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_PAIR",
+      cardUids: [cat1.uid, cat2.uid],
+      target: 1,
+    });
+    const noped = applyAction(played, { type: "PLAY_NOPE", player: 1, cardUid: nope.uid });
+    const resolved = applyAction(noped, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.players[0]!.hand).toHaveLength(0);
+    expect(resolved.players[1]!.hand.map((c) => c.id)).toEqual(["SKIP"]);
+  });
+});
+
+describe("applyAction — Triple combo (§9)", () => {
+  it("takes the named card type when the target has it", () => {
+    const cat1 = card("CAT_BEARD", "cat1");
+    const cat2 = card("CAT_BEARD", "cat2");
+    const cat3 = card("CAT_BEARD", "cat3");
+    const theirSkip = card("SKIP");
+    const state = baseState({
+      players: [
+        player("a", [cat1, cat2, cat3]),
+        player("b", [theirSkip, card("NOPE")]),
+        player("c", []),
+      ],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_TRIPLE",
+      cardUids: [cat1.uid, cat2.uid, cat3.uid],
+      target: 1,
+      namedCard: "SKIP",
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+    expect(played.discard.map((c) => c.id)).toEqual(["CAT_BEARD", "CAT_BEARD", "CAT_BEARD"]);
+
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.players[0]!.hand.map((c) => c.id)).toEqual(["SKIP"]);
+    expect(resolved.players[1]!.hand.map((c) => c.id)).toEqual(["NOPE"]);
+  });
+
+  it("does nothing (cards still consumed) when the target doesn't have the named type", () => {
+    const cat1 = card("CAT_BEARD", "cat1");
+    const cat2 = card("CAT_BEARD", "cat2");
+    const cat3 = card("CAT_BEARD", "cat3");
+    const state = baseState({
+      players: [player("a", [cat1, cat2, cat3]), player("b", [card("NOPE")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_TRIPLE",
+      cardUids: [cat1.uid, cat2.uid, cat3.uid],
+      target: 1,
+      namedCard: "SKIP",
+    });
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.players[0]!.hand).toHaveLength(0);
+    expect(resolved.players[1]!.hand.map((c) => c.id)).toEqual(["NOPE"]);
+  });
+
+  it("allows Feral Cats as wild cats", () => {
+    const cat1 = card("CAT_BEARD", "cat1");
+    const feral = card("FERAL", "feral");
+    const cat3 = card("CAT_BEARD", "cat3");
+    const state = baseState({
+      players: [player("a", [cat1, feral, cat3]), player("b", [card("SKIP")]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_TRIPLE",
+      cardUids: [cat1.uid, feral.uid, cat3.uid],
+      target: 1,
+      namedCard: "SKIP",
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+  });
+
+  it("rejects three Feral Cats alone under the default feralPairRule", () => {
+    const feral1 = card("FERAL", "feral1");
+    const feral2 = card("FERAL", "feral2");
+    const feral3 = card("FERAL", "feral3");
+    const state = baseState({
+      players: [
+        player("a", [feral1, feral2, feral3]),
+        player("b", [card("SKIP")]),
+        player("c", []),
+      ],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, {
+        type: "PLAY_TRIPLE",
+        cardUids: [feral1.uid, feral2.uid, feral3.uid],
+        target: 1,
+        namedCard: "SKIP",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects non-cat triples under comboScope=cats-only (default)", () => {
+    const skip1 = card("SKIP", "skip1");
+    const skip2 = card("SKIP", "skip2");
+    const skip3 = card("SKIP", "skip3");
+    const state = baseState({
+      players: [
+        player("a", [skip1, skip2, skip3]),
+        player("b", [card("NOPE")]),
+        player("c", []),
+      ],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, {
+        type: "PLAY_TRIPLE",
+        cardUids: [skip1.uid, skip2.uid, skip3.uid],
+        target: 1,
+        namedCard: "NOPE",
+      }),
+    ).toThrow();
+  });
+
+  it("has no effect but still consumes the cards when the target has zero cards", () => {
+    const cat1 = card("CAT_BEARD", "cat1");
+    const cat2 = card("CAT_BEARD", "cat2");
+    const cat3 = card("CAT_BEARD", "cat3");
+    const state = baseState({
+      players: [player("a", [cat1, cat2, cat3]), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_TRIPLE",
+      cardUids: [cat1.uid, cat2.uid, cat3.uid],
+      target: 1,
+      namedCard: "SKIP",
+    });
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.discard.map((c) => c.id)).toEqual(["CAT_BEARD", "CAT_BEARD", "CAT_BEARD"]);
+  });
+});
+
+describe("applyAction — Five different combo (§9)", () => {
+  it("takes the chosen card from the discard pile", () => {
+    const cards = [
+      card("SKIP"),
+      card("NOPE"),
+      card("SHUF"),
+      card("STF"),
+      card("CAT_TACOCAT", "cat"),
+    ];
+    const discarded = card("ATK", "in-discard");
+    const state = baseState({
+      discard: [discarded],
+      players: [player("a", cards), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_FIVE_DIFFERENT",
+      cardUids: cards.map((c) => c.uid) as [string, string, string, string, string],
+      discardUid: discarded.uid,
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+    expect(played.players[0]!.hand).toHaveLength(0);
+    expect(played.discard.map((c) => c.id)).toEqual([
+      "ATK",
+      "SKIP",
+      "NOPE",
+      "SHUF",
+      "STF",
+      "CAT_TACOCAT",
+    ]);
+
+    const resolved = applyAction(played, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.players[0]!.hand.map((c) => c.id)).toEqual(["ATK"]);
+    expect(resolved.discard.map((c) => c.id)).toEqual([
+      "SKIP",
+      "NOPE",
+      "SHUF",
+      "STF",
+      "CAT_TACOCAT",
+    ]);
+  });
+
+  it("rejects fewer than 5 differently-titled cards", () => {
+    const cards = [card("SKIP", "s1"), card("SKIP", "s2"), card("NOPE"), card("SHUF"), card("STF")];
+    const discarded = card("ATK");
+    const state = baseState({
+      discard: [discarded],
+      players: [player("a", cards), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    expect(() =>
+      applyAction(state, {
+        type: "PLAY_FIVE_DIFFERENT",
+        cardUids: cards.map((c) => c.uid) as [string, string, string, string, string],
+        discardUid: discarded.uid,
+      }),
+    ).toThrow();
+  });
+
+  it("ignores comboScope=cats-only — five different is not restricted to cat cards", () => {
+    const cards = [card("SKIP"), card("NOPE"), card("SHUF"), card("STF"), card("DFB")];
+    const discarded = card("ATK");
+    const state = baseState({
+      discard: [discarded],
+      players: [player("a", cards), player("b", []), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_FIVE_DIFFERENT",
+      cardUids: cards.map((c) => c.uid) as [string, string, string, string, string],
+      discardUid: discarded.uid,
+    });
+    expect(played.phase).toBe("NOPE_WINDOW");
+  });
+
+  it("opens a Nope window that can cancel the five-different combo", () => {
+    const cards = [card("SKIP"), card("SHUF"), card("STF"), card("DFB"), card("FAV")];
+    const discarded = card("ATK");
+    const nope = card("NOPE");
+    const state = baseState({
+      discard: [discarded],
+      players: [player("a", cards), player("b", [nope]), player("c", [])],
+      currentPlayer: 0,
+      turnsRemaining: 1,
+    });
+
+    const played = applyAction(state, {
+      type: "PLAY_FIVE_DIFFERENT",
+      cardUids: cards.map((c) => c.uid) as [string, string, string, string, string],
+      discardUid: discarded.uid,
+    });
+    const noped = applyAction(played, { type: "PLAY_NOPE", player: 1, cardUid: nope.uid });
+    const resolved = applyAction(noped, { type: "PASS_NOPE_WINDOW" });
+
+    expect(resolved.phase).toBe("ACTION");
+    expect(resolved.players[0]!.hand).toHaveLength(0);
+    expect(resolved.discard.map((c) => c.id)).toContain("ATK");
+  });
+});

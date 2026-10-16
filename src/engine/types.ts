@@ -90,7 +90,10 @@ export type NopeableEffect =
   | { kind: "SHUFFLE" }
   | { kind: "SEE_FUTURE" }
   | { kind: "ALTER_FUTURE"; order: string[] }
-  | { kind: "DRAW_FROM_BOTTOM" };
+  | { kind: "DRAW_FROM_BOTTOM" }
+  | { kind: "PAIR"; target: number }
+  | { kind: "TRIPLE"; target: number; namedCard: CardId }
+  | { kind: "FIVE_DIFFERENT"; discardUid: string };
 
 /** Awaiting the Nope window to close on a played action card/combo (spec §7). */
 export interface PendingNopeableAction {

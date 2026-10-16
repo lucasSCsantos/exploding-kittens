@@ -1,8 +1,17 @@
 // applyAction: turn loop (spec §5), Exploding Kitten resolution (spec §6),
 // Nope reaction stack (spec §7), and non-combo action card effects (spec §8).
 
+import { CAT_CARD_IDS } from "./decks.js";
 import { createRng, shuffle } from "./rng.js";
-import type { Card, CardId, GameState, NopeableEffect, PendingNopeableAction, Player } from "./types.js";
+import type {
+  Card,
+  CardId,
+  Config,
+  GameState,
+  NopeableEffect,
+  PendingNopeableAction,
+  Player,
+} from "./types.js";
 
 export type Action =
   | { type: "DRAW" }
@@ -17,6 +26,13 @@ export type Action =
   | { type: "PLAY_ALTER_FUTURE"; cardUid: string; order: string[] }
   | { type: "PLAY_DRAW_FROM_BOTTOM"; cardUid: string }
   | { type: "PLAY_CAT"; cardUid: string }
+  | { type: "PLAY_PAIR"; cardUids: [string, string]; target: number }
+  | { type: "PLAY_TRIPLE"; cardUids: [string, string, string]; target: number; namedCard: CardId }
+  | {
+      type: "PLAY_FIVE_DIFFERENT";
+      cardUids: [string, string, string, string, string];
+      discardUid: string;
+    }
   | { type: "PLAY_NOPE"; player: number; cardUid: string }
   | { type: "PASS_NOPE_WINDOW" };
 
@@ -55,6 +71,12 @@ export function applyAction(state: GameState, action: Action): GameState {
       return handlePlayDrawFromBottom(state, action.cardUid);
     case "PLAY_CAT":
       return handlePlayCat();
+    case "PLAY_PAIR":
+      return handlePlayPair(state, action.cardUids, action.target);
+    case "PLAY_TRIPLE":
+      return handlePlayTriple(state, action.cardUids, action.target, action.namedCard);
+    case "PLAY_FIVE_DIFFERENT":
+      return handlePlayFiveDifferent(state, action.cardUids, action.discardUid);
     case "PLAY_NOPE":
       return handlePlayNope(state, action.player, action.cardUid);
     case "PASS_NOPE_WINDOW":
@@ -119,6 +141,19 @@ function playCardFromHand(
   const players = replacePlayer(state.players, state.currentPlayer, updatedPlayer);
 
   return { state: { ...state, players, discard: [...state.discard, card] }, card };
+}
+
+/** Moves `players[from].hand[cardIndex]` into `players[to]`'s hand. */
+function transferCard(players: Player[], from: number, cardIndex: number, to: number): Player[] {
+  const fromPlayer = players[from]!;
+  const card = fromPlayer.hand[cardIndex]!;
+  let updated = replacePlayer(players, from, {
+    ...fromPlayer,
+    hand: fromPlayer.hand.filter((_, i) => i !== cardIndex),
+  });
+  const toPlayer = updated[to]!;
+  updated = replacePlayer(updated, to, { ...toPlayer, hand: [...toPlayer.hand, card] });
+  return updated;
 }
 
 function requireAliveOpponent(state: GameState, target: number): void {
@@ -199,14 +234,7 @@ function handleResolveFavor(state: GameState, cardUid: string): GameState {
   if (index === -1) {
     throw new Error(`applyAction: card ${cardUid} is not in the Favor target's hand`);
   }
-  const card = targetPlayer.hand[index]!;
-
-  let players = replacePlayer(state.players, target, {
-    ...targetPlayer,
-    hand: targetPlayer.hand.filter((_, i) => i !== index),
-  });
-  const fromPlayer = players[from]!;
-  players = replacePlayer(players, from, { ...fromPlayer, hand: [...fromPlayer.hand, card] });
+  const players = transferCard(state.players, target, index, from);
 
   return { ...state, players, pendingAction: null, phase: "ACTION" };
 }
@@ -277,9 +305,157 @@ function handlePlayDrawFromBottom(state: GameState, cardUid: string): GameState 
   return openNopeWindow(afterPlay, { kind: "DRAW_FROM_BOTTOM" });
 }
 
-/** §8.9: cat cards (incl. Feral Cat) have no standalone effect — combos land in ticket 07. */
+/** §8.9: cat cards (incl. Feral Cat) have no standalone effect — only as part of a combo (§9). */
 function handlePlayCat(): never {
   throw new Error("applyAction: cat cards cannot be played standalone, only as part of a combo");
+}
+
+function isCatFamily(id: CardId): boolean {
+  return id === "FERAL" || CAT_CARD_IDS.includes(id as (typeof CAT_CARD_IDS)[number]);
+}
+
+/** Reads `cardUids`' ids from the current player's hand without removing them, for pre-validation. */
+function requireHandCardIds(state: GameState, cardUids: readonly string[]): CardId[] {
+  if (state.phase !== "ACTION") {
+    throw new Error(`applyAction: cannot play a combo from phase ${state.phase}`);
+  }
+  if (new Set(cardUids).size !== cardUids.length) {
+    throw new Error("applyAction: a combo cannot reuse the same card twice");
+  }
+  const player = state.players[state.currentPlayer]!;
+  return cardUids.map((uid) => {
+    const found = player.hand.find((c) => c.uid === uid);
+    if (!found) throw new Error(`applyAction: card ${uid} is not in the current player's hand`);
+    return found.id;
+  });
+}
+
+/**
+ * §9: pair/triple require matching titles, with Feral Cat standing in for any cat card.
+ * `comboScope=cats-only` (default) further requires the matched title to be a cat card.
+ */
+function requireComboTitle(config: Config, ids: CardId[], comboName: string): void {
+  const nonFeral = ids.filter((id) => id !== "FERAL");
+  const sameTitle = nonFeral.length === 0 || nonFeral.every((id) => id === nonFeral[0]);
+  if (!sameTitle) {
+    throw new Error(`applyAction: ${comboName} combo requires cards with a matching title`);
+  }
+  if (config.comboScope === "cats-only") {
+    const isCatCombo = nonFeral.length === 0 || isCatFamily(nonFeral[0]!);
+    if (!isCatCombo) {
+      throw new Error(
+        `applyAction: ${comboName} combo requires cat cards under comboScope=cats-only`,
+      );
+    }
+  }
+}
+
+/** §9: Feral Cats alone (no real cat among them) form a valid pair/triple only when `feralPairRule=allowed`. */
+function requireFeralComboRule(config: Config, ids: CardId[], comboName: string): void {
+  if (ids.every((id) => id === "FERAL") && config.feralPairRule === "requires-real-cat") {
+    throw new Error(`applyAction: Feral Cats alone do not form a valid ${comboName}`);
+  }
+}
+
+/** Removes `cardUids` (already validated) from the current player's hand and discards them. */
+function takeCardsFromHand(state: GameState, cardUids: readonly string[]): GameState {
+  const player = state.players[state.currentPlayer]!;
+  const uidSet = new Set(cardUids);
+  const takenCards = player.hand.filter((c) => uidSet.has(c.uid));
+  const updatedPlayer: Player = { ...player, hand: player.hand.filter((c) => !uidSet.has(c.uid)) };
+  const players = replacePlayer(state.players, state.currentPlayer, updatedPlayer);
+  return { ...state, players, discard: [...state.discard, ...takenCards] };
+}
+
+/** §9 Pair: 2 same-title cards → take a random card from an alive opponent's hand. */
+function handlePlayPair(state: GameState, cardUids: [string, string], target: number): GameState {
+  requireAliveOpponent(state, target);
+  const ids = requireHandCardIds(state, cardUids);
+  requireComboTitle(state.config, ids, "pair");
+  requireFeralComboRule(state.config, ids, "pair");
+
+  const afterPlay = takeCardsFromHand(state, cardUids);
+  return openNopeWindow(afterPlay, { kind: "PAIR", target });
+}
+
+/** The Pair effect itself (§9): a blind, seeded-RNG draw from the target's hand. */
+function resolvePairEffect(state: GameState, player: number, target: number): GameState {
+  const targetPlayer = state.players[target]!;
+  if (targetPlayer.hand.length === 0) {
+    return { ...state, phase: "ACTION" };
+  }
+
+  const rng = createRng(state.rngState);
+  const index = Math.floor(rng.next() * targetPlayer.hand.length);
+  const players = transferCard(state.players, target, index, player);
+
+  return { ...state, players, rngState: rng.getState(), phase: "ACTION" };
+}
+
+/** §9 Triple: 3 same-title cards → name a card type the target must give up, if they have it. */
+function handlePlayTriple(
+  state: GameState,
+  cardUids: [string, string, string],
+  target: number,
+  namedCard: CardId,
+): GameState {
+  requireAliveOpponent(state, target);
+  const ids = requireHandCardIds(state, cardUids);
+  requireComboTitle(state.config, ids, "triple");
+  requireFeralComboRule(state.config, ids, "triple");
+
+  const afterPlay = takeCardsFromHand(state, cardUids);
+  return openNopeWindow(afterPlay, { kind: "TRIPLE", target, namedCard });
+}
+
+/** The Triple effect itself (§9): give up the named type if held, otherwise no-op. */
+function resolveTripleEffect(
+  state: GameState,
+  player: number,
+  target: number,
+  namedCard: CardId,
+): GameState {
+  const targetPlayer = state.players[target]!;
+  const index = targetPlayer.hand.findIndex((c) => c.id === namedCard);
+  if (index === -1) {
+    return { ...state, phase: "ACTION" };
+  }
+  const players = transferCard(state.players, target, index, player);
+
+  return { ...state, players, phase: "ACTION" };
+}
+
+/** §9 Five different: 5 differently-titled cards → take any chosen card from the discard pile. */
+function handlePlayFiveDifferent(
+  state: GameState,
+  cardUids: [string, string, string, string, string],
+  discardUid: string,
+): GameState {
+  const ids = requireHandCardIds(state, cardUids);
+  if (new Set(ids).size !== 5) {
+    throw new Error("applyAction: five-different combo requires 5 differently-titled cards");
+  }
+  if (!state.discard.some((c) => c.uid === discardUid)) {
+    throw new Error(`applyAction: card ${discardUid} is not in the discard pile`);
+  }
+
+  const afterPlay = takeCardsFromHand(state, cardUids);
+  return openNopeWindow(afterPlay, { kind: "FIVE_DIFFERENT", discardUid });
+}
+
+/** The Five different effect itself (§9): pulls the chosen card out of the discard pile. */
+function resolveFiveDifferentEffect(state: GameState, player: number, discardUid: string): GameState {
+  const index = state.discard.findIndex((c) => c.uid === discardUid);
+  if (index === -1) {
+    throw new Error(`applyAction: card ${discardUid} is no longer in the discard pile`);
+  }
+  const card = state.discard[index]!;
+  const discard = state.discard.filter((_, i) => i !== index);
+
+  const taker = state.players[player]!;
+  const players = replacePlayer(state.players, player, { ...taker, hand: [...taker.hand, card] });
+
+  return { ...state, players, discard, phase: "ACTION" };
 }
 
 /** Applies a previously-opened Nope window's effect once it resolves without being cancelled (§7). */
@@ -301,6 +477,12 @@ function resolveNopeableEffect(state: GameState, player: number, effect: Nopeabl
       return resolveAlterFutureEffect(state, player, effect.order);
     case "DRAW_FROM_BOTTOM":
       return resolveDraw(state, state.deck.length - 1);
+    case "PAIR":
+      return resolvePairEffect(state, player, effect.target);
+    case "TRIPLE":
+      return resolveTripleEffect(state, player, effect.target, effect.namedCard);
+    case "FIVE_DIFFERENT":
+      return resolveFiveDifferentEffect(state, player, effect.discardUid);
   }
 }
 
