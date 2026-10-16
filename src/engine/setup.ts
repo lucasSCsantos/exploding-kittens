@@ -1,8 +1,8 @@
 // createGame: pure setup procedure per spec §4.
 
-import { buildBaseDeck, CAT_BREAKDOWN, deckTierForPlayerCount, makeCard, totalDefuseCount } from "./decks";
-import { createRng, shuffle } from "./rng";
-import type { Card, Config, GameState, Player } from "./types";
+import { buildBaseDeck, CAT_BREAKDOWN, deckTierForPlayerCount, makeCard, totalDefuseCount } from "./decks.js";
+import { createRng, shuffle } from "./rng.js";
+import type { Card, Config, GameState, Player } from "./types.js";
 
 export type SetupConfig = Partial<Omit<Config, "deckTier" | "catBreakdown">> & {
   /** Seeds the shuffle RNG; omit for a fresh random game. */
@@ -76,7 +76,9 @@ export function createGame(playerNames: string[], configInput: SetupConfig = {})
     discard: [],
     pendingAction: null,
     nopeStack: [],
+    explodedKittens: [],
     phase: "SETUP",
+    winner: null,
     config,
   };
 }

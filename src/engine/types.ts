@@ -67,15 +67,25 @@ export type Phase =
   | "DEFUSE_REINSERT"
   | "GAME_OVER";
 
+/** Awaiting the defusing player's reinsertion position choice (spec §6). */
+export interface PendingDefuseReinsert {
+  type: "DEFUSE_REINSERT";
+  kitten: Card;
+}
+
 export interface GameState {
   players: Player[];
   currentPlayer: number;
   turnsRemaining: number;
   deck: Card[];
   discard: Card[];
-  /** No Action/Nope types yet — turn loop (ticket 04) will replace these placeholders. */
-  pendingAction: null;
+  /** No action-card Nope targets yet — ticket 06 will add those pending-action shapes. */
+  pendingAction: PendingDefuseReinsert | null;
   nopeStack: unknown[];
+  /** Exploding Kittens that eliminated a player: face up, out of play, never reshuffled (§6). */
+  explodedKittens: Card[];
   phase: Phase;
+  /** Set only once phase is GAME_OVER (§10). */
+  winner: number | null;
   config: Config;
 }
