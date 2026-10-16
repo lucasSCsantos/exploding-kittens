@@ -1,13 +1,13 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import { NewGameForm } from "./table/NewGameForm.js";
+import { Table } from "./table/Table.js";
+import { useGameStore } from "./table/gameStore.js";
 
 function App() {
-  return (
-    <main className="flex h-screen items-center justify-center bg-neutral-900 text-white">
-      <h1 className="text-2xl font-semibold">Exploding Friends</h1>
-    </main>
-  );
+  const hasGame = useGameStore((s) => s.game !== null);
+  return hasGame ? <Table /> : <NewGameForm />;
 }
 
 const container = document.getElementById("root");

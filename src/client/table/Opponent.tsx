@@ -1,0 +1,51 @@
+// One opponent seat: avatar, nickname, face-down fan sized to their hand count, and a highlight
+// while it's their turn (ticket 10).
+
+import { getCardBackImage } from "../cards.js";
+import { fanTransform } from "./layout.js";
+
+export interface OpponentProps {
+  nickname: string;
+  handSize: number;
+  alive: boolean;
+  isActiveTurn: boolean;
+}
+
+export function Opponent({ nickname, handSize, alive, isActiveTurn }: OpponentProps) {
+  const backImage = getCardBackImage();
+  const fanCount = Math.min(handSize, 8);
+
+  return (
+    <div
+      className={`flex flex-col items-center gap-1 rounded-xl p-2 ${
+        isActiveTurn ? "ring-4 ring-amber-400" : ""
+      } ${!alive ? "opacity-40 grayscale" : ""}`}
+    >
+      <div
+        className={`flex h-14 w-14 items-center justify-center rounded-full bg-neutral-700 text-lg font-bold text-white ${
+          isActiveTurn ? "shadow-[0_0_14px_4px_rgba(251,191,36,0.6)]" : ""
+        }`}
+      >
+        {nickname.slice(0, 2).toUpperCase()}
+      </div>
+      <span className="max-w-24 truncate text-sm text-white">{nickname}</span>
+      <div className="relative flex h-14 items-end justify-center">
+        {Array.from({ length: fanCount }, (_, i) => {
+          const { rotateDeg, translateX } = fanTransform(i, fanCount);
+          return (
+            <img
+              key={i}
+              src={backImage}
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="absolute h-14 w-10 max-w-none select-none rounded object-cover shadow"
+              style={{ transform: `rotate(${rotateDeg}deg) translateX(${translateX / 2}px)` }}
+            />
+          );
+        })}
+      </div>
+      <span className="text-xs text-neutral-300">{handSize} cards</span>
+    </div>
+  );
+}
