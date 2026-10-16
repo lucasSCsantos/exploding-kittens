@@ -108,6 +108,14 @@ export interface NopePlay {
   player: number;
 }
 
+/** A resolved action-card/combo play, recorded for the public play history (spec §3: "every card played and its target"). */
+export interface PlayHistoryEntry {
+  player: number;
+  effect: NopeableEffect;
+  /** Whether the Nope stack cancelled this play instead of letting it resolve. */
+  noped: boolean;
+}
+
 export interface GameState {
   players: Player[];
   currentPlayer: number;
@@ -124,4 +132,6 @@ export interface GameState {
   config: Config;
   /** Rng.getState() after the last engine-driven shuffle, so SHUF can resume the sequence deterministically. */
   rngState: number;
+  /** Every resolved action-card/combo play, in order (spec §3 public info). */
+  playHistory: PlayHistoryEntry[];
 }

@@ -527,7 +527,12 @@ function handlePlayNope(state: GameState, playerIndex: number, cardUid: string):
 function handlePassNopeWindow(state: GameState): GameState {
   const { player, effect } = requireNopeWindow(state);
   const cancelled = state.nopeStack.length % 2 === 1;
-  const cleared = { ...state, pendingAction: null, nopeStack: [] };
+  const cleared = {
+    ...state,
+    pendingAction: null,
+    nopeStack: [],
+    playHistory: [...state.playHistory, { player, effect, noped: cancelled }],
+  };
 
   if (cancelled) {
     return { ...cleared, phase: "ACTION" };

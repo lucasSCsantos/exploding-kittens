@@ -81,5 +81,6 @@ export function createGame(playerNames: string[], configInput: SetupConfig = {})
     winner: null,
     config,
     rngState: rng.getState(),
+    playHistory: [],
   };
 }
