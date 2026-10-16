@@ -3,6 +3,8 @@
 export interface Rng {
   /** Returns a float in [0, 1). */
   next(): number;
+  /** Internal state, usable as the `seed` to a later createRng() to resume the sequence. */
+  getState(): number;
 }
 
 /** mulberry32 — small, fast, good-enough-for-a-card-game PRNG. */
@@ -14,6 +16,9 @@ export function createRng(seed: number): Rng {
       let t = Math.imul(state ^ (state >>> 15), 1 | state);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+    getState(): number {
+      return state;
     },
   };
 }

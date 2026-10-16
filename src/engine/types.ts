@@ -65,6 +65,7 @@ export type Phase =
   | "NOPE_WINDOW"
   | "DRAW"
   | "DEFUSE_REINSERT"
+  | "FAVOR_RESOLVE"
   | "GAME_OVER";
 
 /** Awaiting the defusing player's reinsertion position choice (spec §6). */
@@ -73,14 +74,21 @@ export interface PendingDefuseReinsert {
   kitten: Card;
 }
 
+/** Awaiting the Favor target's choice of which card to give (spec §8.4). */
+export interface PendingFavor {
+  type: "FAVOR";
+  from: number;
+  target: number;
+}
+
 export interface GameState {
   players: Player[];
   currentPlayer: number;
   turnsRemaining: number;
   deck: Card[];
   discard: Card[];
-  /** No action-card Nope targets yet — ticket 06 will add those pending-action shapes. */
-  pendingAction: PendingDefuseReinsert | null;
+  /** No Noped-action pending shapes yet — ticket 06 will add those. */
+  pendingAction: PendingDefuseReinsert | PendingFavor | null;
   nopeStack: unknown[];
   /** Exploding Kittens that eliminated a player: face up, out of play, never reshuffled (§6). */
   explodedKittens: Card[];
@@ -88,4 +96,6 @@ export interface GameState {
   /** Set only once phase is GAME_OVER (§10). */
   winner: number | null;
   config: Config;
+  /** Rng.getState() after the last engine-driven shuffle, so SHUF can resume the sequence deterministically. */
+  rngState: number;
 }
