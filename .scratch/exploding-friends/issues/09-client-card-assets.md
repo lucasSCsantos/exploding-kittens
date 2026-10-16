@@ -4,12 +4,12 @@
 
 **Blocked by:** 08 (engine player view)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `src/client/cards.ts`: loads all `explodding/*.jpg` via `import.meta.glob(..., { eager: true })`
-- [ ] Explicit `CARD_TYPE_TO_FILES: Record<CardId, string[]>` table (not guessed from filenames)
-- [ ] `assignDesigns(state)` gives each card *instance* a stable design index for the whole game
-- [ ] `getCardImage(cardId, instanceId)` and `getCardBackImage()` implemented
-- [ ] Test: every `CardId` in `src/engine/types.ts` has at least one entry in `CARD_TYPE_TO_FILES`
-- [ ] Test: every file listed in `CARD_TYPE_TO_FILES` actually exists in `explodding/`
-- [ ] Test: the same card instance resolves to the same image across repeated calls within a game
+- [x] `src/client/cards.ts`: loads all `explodding/*.jpg` via `import.meta.glob(..., { eager: true })`
+- [x] Explicit `CARD_TYPE_TO_FILES: Record<CardId, string[]>` table (not guessed from filenames)
+- [x] `assignDesigns(state)` gives each card *instance* a stable design index for the whole game
+- [x] `getCardImage(cardId, instanceId)` and `getCardBackImage()` implemented
+- [x] Test: every `CardId` in `src/engine/types.ts` has at least one entry in `CARD_TYPE_TO_FILES`
+- [x] Test: every file listed in `CARD_TYPE_TO_FILES` actually exists in `explodding/`
+- [x] Test: the same card instance resolves to the same image across repeated calls within a game
