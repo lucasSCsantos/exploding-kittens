@@ -91,6 +91,37 @@ export function resolveTransferCard(prev: ServerView, next: ServerView, transfer
   return null;
 }
 
+/** A draw worth animating: `kind` distinguishes "it's my own draw, and I know the card" from
+ * "an opponent drew, and I only get to see a face-down card travel" — `card` is non-null only for
+ * the former. */
+export interface DrawEvent {
+  kind: "own" | "opponent";
+  seat: number;
+  card: Card | null;
+}
+
+/** Detects a draw in this diff (shared by the draw-travel animation in `Table.tsx`). Only the
+ * deck shrinking signals a draw (a reinsertion grows it back), and the drawer is whoever's turn
+ * it was *before* the draw — a stacked Attack can mean several draws in a row without the turn
+ * moving, but a successful draw never changes who it was mid-sequence. A kitten moment isn't worth
+ * animating as a plain draw too — whether it eliminates the drawer outright or sends them into
+ * `DEFUSE_REINSERT`, `detectKittenEvent` already covers showing that card. */
+export function detectDraw(prev: ServerView, next: ServerView): DrawEvent | null {
+  if (next.deckSize >= prev.deckSize) return null;
+  if (next.phase === "DEFUSE_REINSERT") return null;
+
+  const seat = prev.currentPlayer;
+  if (!next.players[seat]?.alive) return null;
+
+  if (seat === next.you) {
+    const prevUids = new Set(prev.hand.map((card) => card.uid));
+    const card = next.hand.find((card) => !prevUids.has(card.uid)) ?? null;
+    return { kind: "own", seat, card };
+  }
+
+  return { kind: "opponent", seat, card: null };
+}
+
 export function diffViewForFeedback(prev: ServerView | null, next: ServerView): void {
   if (!prev) return;
 
@@ -109,6 +140,11 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
 
   if (next.deckSize < prev.deckSize) {
     playSound("draw");
+  }
+
+  const drawEvent = detectDraw(prev, next);
+  if (drawEvent) {
+    useGameStore.setState({ lastDraw: drawEvent });
   }
 
   const kittenEvent = detectKittenEvent(prev, next);

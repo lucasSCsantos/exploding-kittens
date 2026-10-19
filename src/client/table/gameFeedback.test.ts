@@ -23,7 +23,7 @@ vi.mock("../haptics.js", () => ({
   vibrate: (pattern: number | number[]) => vibrations.push(pattern),
 }));
 
-const { diffViewForFeedback, detectKittenEvent, detectCardTransfer, resolveTransferCard } =
+const { diffViewForFeedback, detectKittenEvent, detectCardTransfer, resolveTransferCard, detectDraw } =
   await import("./gameFeedback.js");
 const { useGameStore } = await import("./gameStore.js");
 
@@ -343,6 +343,65 @@ describe("detectCardTransfer", () => {
   });
 });
 
+describe("detectDraw", () => {
+  it("returns null when the deck hasn't shrunk", () => {
+    expect(detectDraw(baseView({ deckSize: 20 }), baseView({ deckSize: 20 }))).toBeNull();
+  });
+
+  it("reports the viewer's own draw with the newly-arrived card", () => {
+    const drawn = { id: "SKIP" as const, uid: "drawn-card" };
+    const event = detectDraw(
+      baseView({ you: 0, currentPlayer: 0, deckSize: 20, hand: [] }),
+      baseView({ you: 0, currentPlayer: 0, deckSize: 19, hand: [drawn] }),
+    );
+    expect(event).toEqual({ kind: "own", seat: 0, card: drawn });
+  });
+
+  it("reports an opponent's draw face-down, with no card", () => {
+    const event = detectDraw(
+      baseView({ you: 0, currentPlayer: 1, deckSize: 20 }),
+      baseView({ you: 0, currentPlayer: 1, deckSize: 19 }),
+    );
+    expect(event).toEqual({ kind: "opponent", seat: 1, card: null });
+  });
+
+  it("attributes the draw to whoever's turn it was before the draw, even if the turn already advanced", () => {
+    const event = detectDraw(
+      baseView({ you: 0, currentPlayer: 1, deckSize: 20 }),
+      baseView({ you: 0, currentPlayer: 2, deckSize: 19 }),
+    );
+    expect(event?.seat).toBe(1);
+  });
+
+  it("does not animate a draw that eliminated the drawer (no defuse)", () => {
+    const event = detectDraw(
+      baseView({ you: 0, currentPlayer: 1, deckSize: 20 }),
+      baseView({
+        you: 0,
+        currentPlayer: 2,
+        deckSize: 19,
+        players: [
+          { id: "Alice", alive: true, handSize: 7 },
+          { id: "Bob", alive: false, handSize: 0 },
+        ],
+      }),
+    );
+    expect(event).toBeNull();
+  });
+
+  it("does not fire on a reinsertion growing the deck back", () => {
+    expect(detectDraw(baseView({ deckSize: 19 }), baseView({ deckSize: 20 }))).toBeNull();
+  });
+
+  it("does not animate a draw that triggered a defuse reinsertion (the kitten reveal covers it)", () => {
+    const event = detectDraw(
+      baseView({ you: 0, currentPlayer: 0, deckSize: 20, phase: "ACTION" }),
+      baseView({ you: 0, currentPlayer: 0, deckSize: 19, phase: "DEFUSE_REINSERT" }),
+    );
+    expect(event).toBeNull();
+  });
+});
+
 describe("resolveTransferCard", () => {
   const stolenCard = { id: "SKIP" as const, uid: "stolen-card" };
 
@@ -371,6 +430,33 @@ describe("resolveTransferCard", () => {
       { fromSeat: 1, toSeat: 0 },
     );
     expect(card).toBeNull();
+  });
+});
+
+describe("diffViewForFeedback draw tracking (ticket 26)", () => {
+  it("records the viewer's own draw in the store for the flight animation to render", () => {
+    const drawn = { id: "SKIP" as const, uid: "drawn-card" };
+    useGameStore.setState({ lastDraw: null });
+    diffViewForFeedback(
+      baseView({ you: 0, currentPlayer: 0, deckSize: 20, hand: [] }),
+      baseView({ you: 0, currentPlayer: 0, deckSize: 19, hand: [drawn] }),
+    );
+    expect(useGameStore.getState().lastDraw).toEqual({ kind: "own", seat: 0, card: drawn });
+  });
+
+  it("records an opponent's draw with no card", () => {
+    useGameStore.setState({ lastDraw: null });
+    diffViewForFeedback(
+      baseView({ you: 0, currentPlayer: 1, deckSize: 20 }),
+      baseView({ you: 0, currentPlayer: 1, deckSize: 19 }),
+    );
+    expect(useGameStore.getState().lastDraw).toEqual({ kind: "opponent", seat: 1, card: null });
+  });
+
+  it("does not record anything when the deck is unchanged", () => {
+    useGameStore.setState({ lastDraw: null });
+    diffViewForFeedback(baseView({ deckSize: 20 }), baseView({ deckSize: 20 }));
+    expect(useGameStore.getState().lastDraw).toBeNull();
   });
 });
 

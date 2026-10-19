@@ -49,6 +49,10 @@ interface GameStoreState {
    * isn't a party to the exchange. Not server-owned state: a transient UI moment, cleared by the
    * Table once its fixed flight duration elapses. */
   lastTransfer: { fromSeat: number; toSeat: number; card: Card | null } | null;
+  /** The most recent draw noticed by `gameFeedback.ts`'s view diffing (ticket 26) — drives the
+   * draw-travel animation (deck → hand/fan). `card` is only known for the viewer's own draw. Not
+   * server-owned state: a transient UI moment, cleared by the Table once the flight finishes. */
+  lastDraw: { kind: "own" | "opponent"; seat: number; card: Card | null } | null;
   createRoom: (name: string) => void;
   joinRoom: (code: string, name: string) => void;
   updateConfig: (patch: Partial<LobbyConfig>) => void;
@@ -73,6 +77,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   lastError: null,
   lastElimination: null,
   lastTransfer: null,
+  lastDraw: null,
 
   createRoom: (name) => {
     socket.emit(
@@ -156,6 +161,7 @@ socket.on(
       view: null,
       lastElimination: null,
       lastTransfer: null,
+      lastDraw: null,
     });
   },
 );

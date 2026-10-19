@@ -54,7 +54,9 @@ export function Table() {
   const hostId = useGameStore((s) => s.hostId);
   const lastElimination = useGameStore((s) => s.lastElimination);
   const lastTransfer = useGameStore((s) => s.lastTransfer);
+  const lastDraw = useGameStore((s) => s.lastDraw);
   const discardRef = useRef<HTMLButtonElement>(null);
+  const drawPileRef = useRef<HTMLDivElement>(null);
   // Keyed by seat (the viewer's own seat included), so a transfer can fly to/from any seat
   // without plumbing refs through Opponent/Hand — ticket 27 only needs each seat's current rect.
   const seatRefs = useRef(new Map<number, HTMLDivElement>());
@@ -86,6 +88,10 @@ export function Table() {
 
   function clearTransfer(transfer: typeof lastTransfer) {
     useGameStore.setState((state) => (state.lastTransfer === transfer ? { lastTransfer: null } : {}));
+  }
+
+  function clearDraw(draw: typeof lastDraw) {
+    useGameStore.setState((state) => (state.lastDraw === draw ? { lastDraw: null } : {}));
   }
 
   if (!view) return null;
@@ -154,6 +160,24 @@ export function Table() {
     return { fromRect: fromEl.getBoundingClientRect(), toRect: toEl.getBoundingClientRect() };
   })();
 
+  // Reuses the same deck → seat flight as hand-to-hand transfers (ticket 26): face-up with the
+  // actual card for the viewer's own draw, face-down (no card) for an opponent's.
+  const drawFlight = (() => {
+    if (!lastDraw) return null;
+    const fromEl = drawPileRef.current;
+    const toEl = seatRefs.current.get(lastDraw.seat);
+    if (!fromEl || !toEl) return null;
+    return { fromRect: fromEl.getBoundingClientRect(), toRect: toEl.getBoundingClientRect() };
+  })();
+
+  // Withhold the just-drawn card from the fan while it's still flying in from the deck, so it
+  // doesn't appear in its slot and as the flying card at the same time — it joins the fan the
+  // instant the flight lands (lastDraw clears, the full hand flows through again).
+  const handForDisplay =
+    drawFlight && lastDraw?.kind === "own" && lastDraw.card
+      ? view.hand.filter((card) => card.uid !== lastDraw.card!.uid)
+      : view.hand;
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-gradient-to-b from-green-900 to-green-950">
       <RotatePrompt />
@@ -178,6 +202,10 @@ export function Table() {
 
       {seats.map(({ seat, xPercent, yPercent }) => {
         const player = view.players[seat]!;
+        // Hold the fan at its pre-draw count until the face-down card actually lands, so the
+        // count visibly "arrives" with the card instead of jumping ahead of the animation.
+        const isDrawLanding = drawFlight !== null && lastDraw?.kind === "opponent" && lastDraw.seat === seat;
+        const handSize = isDrawLanding ? player.handSize - 1 : player.handSize;
         return (
           <div
             key={seat}
@@ -187,7 +215,7 @@ export function Table() {
           >
             <Opponent
               nickname={player.id}
-              handSize={player.handSize}
+              handSize={handSize}
               alive={player.alive}
               isActiveTurn={view.currentPlayer === seat}
             />
@@ -200,6 +228,7 @@ export function Table() {
 
       <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 gap-8">
         <DrawPile
+          ref={drawPileRef}
           deckSize={view.deckSize}
           canDraw={isYourTurn && view.deckSize > 0}
           onDraw={() => dispatch({ type: "DRAW" })}
@@ -209,7 +238,7 @@ export function Table() {
 
       <div ref={setSeatRef(view.you)} className="absolute bottom-4 left-1/2 -translate-x-1/2">
         <Hand
-          hand={view.hand}
+          hand={handForDisplay}
           canPlay={isYourTurn}
           isSimplePlayable={(cardId: CardId) => classifySinglePlay(cardId).kind === "simple"}
           onSimplePlay={(card) => {
@@ -340,6 +369,16 @@ export function Table() {
           toRect={transferFlight.toRect}
           card={lastTransfer.card}
           onDone={() => clearTransfer(lastTransfer)}
+        />
+      )}
+
+      {lastDraw && drawFlight && (
+        <CardTransferFlight
+          key={`draw-${lastDraw.seat}-${lastDraw.card?.uid ?? "hidden"}`}
+          fromRect={drawFlight.fromRect}
+          toRect={drawFlight.toRect}
+          card={lastDraw.card}
+          onDone={() => clearDraw(lastDraw)}
         />
       )}
 
