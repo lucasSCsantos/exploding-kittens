@@ -20,6 +20,7 @@ import { EventLog } from "./EventLog.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
 import { RotatePrompt } from "./RotatePrompt.js";
+import { WinScreen } from "./WinScreen.js";
 import { useGameStore } from "./gameStore.js";
 import { opponentSeatPositions } from "./layout.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
@@ -116,24 +117,15 @@ export function Table() {
       <EventLog players={view.players} playHistory={view.playHistory} />
 
       {view.winner !== null && (
-        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-black/70">
-          <p className="text-3xl font-bold text-amber-300">{view.players[view.winner]!.id} wins!</p>
-          {playerId === hostId ? (
-            <button
-              type="button"
-              disabled={playAgainClicked}
-              onClick={() => {
-                setPlayAgainClicked(true);
-                playAgain();
-              }}
-              className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 disabled:opacity-50"
-            >
-              Play again
-            </button>
-          ) : (
-            <p className="text-sm text-neutral-300">Waiting for the host to start a new round…</p>
-          )}
-        </div>
+        <WinScreen
+          winnerName={view.players[view.winner]!.id}
+          isHost={playerId === hostId}
+          playAgainDisabled={playAgainClicked}
+          onPlayAgain={() => {
+            setPlayAgainClicked(true);
+            playAgain();
+          }}
+        />
       )}
 
       {seats.map(({ seat, xPercent, yPercent }) => {

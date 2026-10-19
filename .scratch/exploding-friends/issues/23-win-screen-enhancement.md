@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Win screen emphasizes the winner (large name/avatar) rather than a plain text line
 - [ ] A lightweight celebratory effect (e.g. a brief confetti/particle burst) plays, built with the existing Motion-based animation infrastructure (no new animation library)
