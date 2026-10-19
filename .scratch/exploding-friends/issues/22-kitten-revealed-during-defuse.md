@@ -4,8 +4,8 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `DefuseReinsert` renders the kitten's `CardFace`, centered above the reinsertion slider, using `pendingAction.kitten` (already available in the view for this phase — no new data needed)
-- [ ] The card is visible to every player at the table during the `DEFUSE_REINSERT` phase, not only the defusing player
-- [ ] Full test suite and typecheck still pass
+- [x] `DefuseReinsert` renders the kitten's `CardFace`, centered above the reinsertion slider, using `pendingAction.kitten` (already available in the view for this phase — no new data needed)
+- [x] The card is visible to every player at the table during the `DEFUSE_REINSERT` phase, not only the defusing player
+- [x] Full test suite and typecheck still pass
