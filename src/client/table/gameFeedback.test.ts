@@ -23,7 +23,8 @@ vi.mock("../haptics.js", () => ({
   vibrate: (pattern: number | number[]) => vibrations.push(pattern),
 }));
 
-const { diffViewForFeedback, detectKittenEvent, detectCardTransfer } = await import("./gameFeedback.js");
+const { diffViewForFeedback, detectKittenEvent, detectCardTransfer, resolveTransferCard } =
+  await import("./gameFeedback.js");
 const { useGameStore } = await import("./gameStore.js");
 
 function baseView(overrides: Partial<ServerView> = {}): ServerView {
@@ -339,5 +340,83 @@ describe("detectCardTransfer", () => {
       baseView({ phase: "ACTION", pendingAction: null }),
     );
     expect(favorResolved).toEqual({ fromSeat: 1, toSeat: 0 });
+  });
+});
+
+describe("resolveTransferCard", () => {
+  const stolenCard = { id: "SKIP" as const, uid: "stolen-card" };
+
+  it("resolves the card when the viewer is the giver (it just left their hand)", () => {
+    const card = resolveTransferCard(
+      baseView({ you: 1, hand: [stolenCard] }),
+      baseView({ you: 1, hand: [] }),
+      { fromSeat: 1, toSeat: 0 },
+    );
+    expect(card).toEqual(stolenCard);
+  });
+
+  it("resolves the card when the viewer is the receiver (it just arrived in their hand)", () => {
+    const card = resolveTransferCard(
+      baseView({ you: 0, hand: [] }),
+      baseView({ you: 0, hand: [stolenCard] }),
+      { fromSeat: 1, toSeat: 0 },
+    );
+    expect(card).toEqual(stolenCard);
+  });
+
+  it("returns null for a bystander who isn't entitled to know the card's identity", () => {
+    const card = resolveTransferCard(
+      baseView({ you: 2, hand: [] }),
+      baseView({ you: 2, hand: [] }),
+      { fromSeat: 1, toSeat: 0 },
+    );
+    expect(card).toBeNull();
+  });
+});
+
+describe("diffViewForFeedback transfer tracking (ticket 27)", () => {
+  const givenCard = { id: "SKIP" as const, uid: "given-card" };
+
+  it("records a detected transfer in the store for the flight animation to render", () => {
+    useGameStore.setState({ lastTransfer: null });
+    diffViewForFeedback(
+      baseView({ you: 0, playHistory: [] }),
+      baseView({
+        you: 0,
+        hand: [givenCard],
+        playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: false }],
+        players: [
+          { id: "Alice", alive: true, handSize: 8 },
+          { id: "Bob", alive: true, handSize: 6 },
+        ],
+      }),
+    );
+    expect(useGameStore.getState().lastTransfer).toEqual({ fromSeat: 1, toSeat: 0, card: givenCard });
+  });
+
+  it("records a transfer with no card for a bystander", () => {
+    useGameStore.setState({ lastTransfer: null });
+    diffViewForFeedback(
+      baseView({ you: 2, playHistory: [] }),
+      baseView({
+        you: 2,
+        playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: false }],
+        players: [
+          { id: "Alice", alive: true, handSize: 8 },
+          { id: "Bob", alive: true, handSize: 6 },
+          { id: "Carl", alive: true, handSize: 7 },
+        ],
+      }),
+    );
+    expect(useGameStore.getState().lastTransfer).toEqual({ fromSeat: 1, toSeat: 0, card: null });
+  });
+
+  it("does not record a transfer for unrelated playHistory growth", () => {
+    useGameStore.setState({ lastTransfer: null });
+    diffViewForFeedback(
+      baseView({ playHistory: [] }),
+      baseView({ playHistory: [{ player: 0, effect: { kind: "SKIP" }, noped: false }] }),
+    );
+    expect(useGameStore.getState().lastTransfer).toBeNull();
   });
 });

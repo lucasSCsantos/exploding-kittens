@@ -78,6 +78,19 @@ export function detectCardTransfer(prev: ServerView, next: ServerView): CardTran
   return null;
 }
 
+/** The transferred card's identity, for the viewer only when they're a party to the exchange —
+ * the rules don't let a bystander know which card moved. Pair/Triple/Favor never log the card
+ * itself (the engine only logs who/what), so this is resolved from the viewer's own hand diff. */
+export function resolveTransferCard(prev: ServerView, next: ServerView, transfer: CardTransfer): Card | null {
+  if (transfer.fromSeat === next.you) {
+    return prev.hand.find((card) => !next.hand.some((c) => c.uid === card.uid)) ?? null;
+  }
+  if (transfer.toSeat === next.you) {
+    return next.hand.find((card) => !prev.hand.some((c) => c.uid === card.uid)) ?? null;
+  }
+  return null;
+}
+
 export function diffViewForFeedback(prev: ServerView | null, next: ServerView): void {
   if (!prev) return;
 
@@ -108,6 +121,13 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
     if (kittenEvent.kind === "eliminated") {
       useGameStore.setState({ lastElimination: { seat: kittenEvent.seat, card: kittenEvent.card } });
     }
+  }
+
+  const transfer = detectCardTransfer(prev, next);
+  if (transfer) {
+    useGameStore.setState({
+      lastTransfer: { ...transfer, card: resolveTransferCard(prev, next, transfer) },
+    });
   }
 
   if (next.playHistory.length > prev.playHistory.length) {

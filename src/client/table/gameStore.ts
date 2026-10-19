@@ -44,6 +44,11 @@ interface GameStoreState {
    * the full-screen/seat-local loss overlays. Not server-owned state: it's a transient UI moment,
    * cleared by the Table once its fixed display delay elapses. */
   lastElimination: { seat: number; card: Card | null } | null;
+  /** The most recent Favor/Pair/Triple hand-off noticed by `gameFeedback.ts`'s view diffing
+   * (ticket 27) — drives the shared fly-between-seats animation. `card` is null for a viewer who
+   * isn't a party to the exchange. Not server-owned state: a transient UI moment, cleared by the
+   * Table once its fixed flight duration elapses. */
+  lastTransfer: { fromSeat: number; toSeat: number; card: Card | null } | null;
   createRoom: (name: string) => void;
   joinRoom: (code: string, name: string) => void;
   updateConfig: (patch: Partial<LobbyConfig>) => void;
@@ -67,6 +72,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   view: null,
   lastError: null,
   lastElimination: null,
+  lastTransfer: null,
 
   createRoom: (name) => {
     socket.emit(
@@ -149,6 +155,7 @@ socket.on(
       // "play again" resets the room) — drop any stale GAME_OVER view so the app renders Lobby.
       view: null,
       lastElimination: null,
+      lastTransfer: null,
     });
   },
 );

@@ -15,6 +15,7 @@ import { NopeWindow } from "../overlays/NopeWindow.js";
 import { SeeTheFuture } from "../overlays/SeeTheFuture.js";
 import { TargetPicker } from "../overlays/TargetPicker.js";
 import { assignDesigns } from "../cards.js";
+import { CardTransferFlight } from "./CardTransferFlight.js";
 import { DiscardPile } from "./DiscardPile.js";
 import { DrawPile } from "./DrawPile.js";
 import { EliminationFlash } from "./EliminationFlash.js";
@@ -52,7 +53,11 @@ export function Table() {
   const playerId = useGameStore((s) => s.playerId);
   const hostId = useGameStore((s) => s.hostId);
   const lastElimination = useGameStore((s) => s.lastElimination);
+  const lastTransfer = useGameStore((s) => s.lastTransfer);
   const discardRef = useRef<HTMLButtonElement>(null);
+  // Keyed by seat (the viewer's own seat included), so a transfer can fly to/from any seat
+  // without plumbing refs through Opponent/Hand — ticket 27 only needs each seat's current rect.
+  const seatRefs = useRef(new Map<number, HTMLDivElement>());
   const [pendingPlay, setPendingPlay] = useState<PendingPlay | null>(null);
   const [dismissedSeeFutureAt, setDismissedSeeFutureAt] = useState(0);
   // Once the host clicks "Play again", the server's `lobby` broadcast (which leaves the game
@@ -71,6 +76,17 @@ export function Table() {
     }, delay);
     return () => window.clearTimeout(timeout);
   }, [lastElimination]);
+
+  function setSeatRef(seat: number) {
+    return (el: HTMLDivElement | null) => {
+      if (el) seatRefs.current.set(seat, el);
+      else seatRefs.current.delete(seat);
+    };
+  }
+
+  function clearTransfer(transfer: typeof lastTransfer) {
+    useGameStore.setState((state) => (state.lastTransfer === transfer ? { lastTransfer: null } : {}));
+  }
 
   if (!view) return null;
 
@@ -130,6 +146,14 @@ export function Table() {
     .sort((a, b) => a.position - b.position)
     .map((entry) => entry.card);
 
+  const transferFlight = (() => {
+    if (!lastTransfer) return null;
+    const fromEl = seatRefs.current.get(lastTransfer.fromSeat);
+    const toEl = seatRefs.current.get(lastTransfer.toSeat);
+    if (!fromEl || !toEl) return null;
+    return { fromRect: fromEl.getBoundingClientRect(), toRect: toEl.getBoundingClientRect() };
+  })();
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-gradient-to-b from-green-900 to-green-950">
       <RotatePrompt />
@@ -157,6 +181,7 @@ export function Table() {
         return (
           <div
             key={seat}
+            ref={setSeatRef(seat)}
             className="absolute -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${xPercent}%`, top: `${yPercent}%` }}
           >
@@ -182,7 +207,7 @@ export function Table() {
         <DiscardPile ref={discardRef} discard={view.discard} />
       </div>
 
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+      <div ref={setSeatRef(view.you)} className="absolute bottom-4 left-1/2 -translate-x-1/2">
         <Hand
           hand={view.hand}
           canPlay={isYourTurn}
@@ -302,6 +327,19 @@ export function Table() {
             setPendingPlay(null);
           }}
           onCancel={() => setPendingPlay(null)}
+        />
+      )}
+
+      {lastTransfer && transferFlight && (
+        <CardTransferFlight
+          // Forces a fresh mount per transfer — otherwise a transfer that starts before the
+          // previous one's flight finishes would resume mid-animation from the wrong spot
+          // instead of starting clean at the new source rect.
+          key={`${lastTransfer.fromSeat}-${lastTransfer.toSeat}-${lastTransfer.card?.uid ?? "hidden"}`}
+          fromRect={transferFlight.fromRect}
+          toRect={transferFlight.toRect}
+          card={lastTransfer.card}
+          onDone={() => clearTransfer(lastTransfer)}
         />
       )}
 

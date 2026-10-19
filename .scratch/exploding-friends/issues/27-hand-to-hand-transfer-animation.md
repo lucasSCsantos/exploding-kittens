@@ -4,10 +4,10 @@
 
 **Blocked by:** 19 (needs the flight-offset helper + `detectCardTransfer`)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] When `detectCardTransfer` reports a Favor, Pair, or Triple resolution, a single shared animation flies the card from the giving seat to the receiving seat, using the flight-offset helper
-- [ ] The moving card renders face-up when the viewer is the giver or receiver (they're entitled to see it), and face-down for every other viewer (consistent with the rules not revealing the card's identity to bystanders)
-- [ ] Five Different and See/Alter the Future are explicitly out of scope and unaffected (different mechanics — see spec)
-- [ ] Existing Favor/Pair/Triple play flows (prompts, dispatch) are unchanged in behaviour
-- [ ] Full test suite and typecheck still pass
+- [x] When `detectCardTransfer` reports a Favor, Pair, or Triple resolution, a single shared animation flies the card from the giving seat to the receiving seat, using the flight-offset helper
+- [x] The moving card renders face-up when the viewer is the giver or receiver (they're entitled to see it), and face-down for every other viewer (consistent with the rules not revealing the card's identity to bystanders)
+- [x] Five Different and See/Alter the Future are explicitly out of scope and unaffected (different mechanics — see spec)
+- [x] Existing Favor/Pair/Triple play flows (prompts, dispatch) are unchanged in behaviour
+- [x] Full test suite and typecheck still pass
