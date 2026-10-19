@@ -104,6 +104,10 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
       vibrate(KITTEN_PATTERN);
     }
     playSound("explosion");
+
+    if (kittenEvent.kind === "eliminated") {
+      useGameStore.setState({ lastElimination: { seat: kittenEvent.seat, card: kittenEvent.card } });
+    }
   }
 
   if (next.playHistory.length > prev.playHistory.length) {

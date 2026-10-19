@@ -40,6 +40,10 @@ interface GameStoreState {
   config: LobbyConfig;
   view: ServerView | null;
   lastError: string | null;
+  /** The most recent elimination noticed by `gameFeedback.ts`'s view diffing (ticket 25) — drives
+   * the full-screen/seat-local loss overlays. Not server-owned state: it's a transient UI moment,
+   * cleared by the Table once its fixed display delay elapses. */
+  lastElimination: { seat: number; card: Card | null } | null;
   createRoom: (name: string) => void;
   joinRoom: (code: string, name: string) => void;
   updateConfig: (patch: Partial<LobbyConfig>) => void;
@@ -62,6 +66,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   config: DEFAULT_LOBBY_CONFIG,
   view: null,
   lastError: null,
+  lastElimination: null,
 
   createRoom: (name) => {
     socket.emit(
@@ -143,6 +148,7 @@ socket.on(
       // The server only ever sends "lobby" when there's no active game (including right after
       // "play again" resets the room) — drop any stale GAME_OVER view so the app renders Lobby.
       view: null,
+      lastElimination: null,
     });
   },
 );

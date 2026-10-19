@@ -4,7 +4,7 @@
 
 **Blocked by:** 19 (needs `explodedKittens` + `detectKittenEvent`)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] When `detectKittenEvent` reports the viewer's own seat was eliminated, a full-screen overlay appears showing the kitten card (from the newly-exposed `explodedKittens`) and auto-dismisses after a short, fixed delay back into spectating the rest of the game
 - [ ] When `detectKittenEvent` reports a different seat was eliminated, a smaller, seat-local effect plays at that opponent's position (kitten card briefly appears and fades) rather than a full-screen takeover

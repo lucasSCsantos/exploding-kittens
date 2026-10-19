@@ -24,6 +24,7 @@ vi.mock("../haptics.js", () => ({
 }));
 
 const { diffViewForFeedback, detectKittenEvent, detectCardTransfer } = await import("./gameFeedback.js");
+const { useGameStore } = await import("./gameStore.js");
 
 function baseView(overrides: Partial<ServerView> = {}): ServerView {
   return {
@@ -120,6 +121,31 @@ describe("diffViewForFeedback", () => {
     );
     expect(playedSounds).toContain("explosion");
     expect(vibrations).toHaveLength(1);
+  });
+
+  it("records the elimination (ticket 25) in the store for the loss overlays to render", () => {
+    const kitten = { id: "EK" as const, uid: "the-kitten" };
+    useGameStore.setState({ lastElimination: null });
+    diffViewForFeedback(
+      baseView({ explodedKittens: [] }),
+      baseView({
+        players: [
+          { id: "Alice", alive: false, handSize: 0 },
+          { id: "Bob", alive: true, handSize: 7 },
+        ],
+        explodedKittens: [kitten],
+      }),
+    );
+    expect(useGameStore.getState().lastElimination).toEqual({ seat: 0, card: kitten });
+  });
+
+  it("does not record an elimination for a defuse save", () => {
+    useGameStore.setState({ lastElimination: null });
+    diffViewForFeedback(
+      baseView({ phase: "ACTION", currentPlayer: 0 }),
+      baseView({ phase: "DEFUSE_REINSERT", currentPlayer: 0 }),
+    );
+    expect(useGameStore.getState().lastElimination).toBeNull();
   });
 
   it("vibrates the target of a resolved targeted attack", () => {

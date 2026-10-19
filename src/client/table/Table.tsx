@@ -3,11 +3,12 @@
 // special-moment overlay the rules need — Nope window, See/Alter the Future, Defuse reinsertion,
 // Favor, and combos (ticket 11).
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CardId } from "../../engine/types.js";
 import { AlterTheFuture } from "../overlays/AlterTheFuture.js";
 import { DefuseReinsert } from "../overlays/DefuseReinsert.js";
 import { DiscardPicker } from "../overlays/DiscardPicker.js";
+import { EliminationOverlay } from "../overlays/EliminationOverlay.js";
 import { FavorPrompt } from "../overlays/FavorPrompt.js";
 import { NamedCardPicker } from "../overlays/NamedCardPicker.js";
 import { NopeWindow } from "../overlays/NopeWindow.js";
@@ -16,6 +17,7 @@ import { TargetPicker } from "../overlays/TargetPicker.js";
 import { assignDesigns } from "../cards.js";
 import { DiscardPile } from "./DiscardPile.js";
 import { DrawPile } from "./DrawPile.js";
+import { EliminationFlash } from "./EliminationFlash.js";
 import { EventLog } from "./EventLog.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
@@ -36,6 +38,11 @@ type PendingPlay =
   | { kind: "tripleName"; cardUids: [string, string, string]; target: number }
   | { kind: "fiveDifferent"; cardUids: [string, string, string, string, string] };
 
+/** How long each loss overlay stays up before Table clears it back out of the store — a full-
+ * screen moment for the viewer's own loss deserves longer than a bystander's seat-local echo. */
+const OWN_ELIMINATION_DISMISS_MS = 2600;
+const OPPONENT_ELIMINATION_DISMISS_MS = 1400;
+
 export function Table() {
   const dispatch = useGameStore((s) => s.dispatch);
   const peekTopOfDeck = useGameStore((s) => s.peekTopOfDeck);
@@ -44,6 +51,7 @@ export function Table() {
   const view = useGameStore((s) => s.view);
   const playerId = useGameStore((s) => s.playerId);
   const hostId = useGameStore((s) => s.hostId);
+  const lastElimination = useGameStore((s) => s.lastElimination);
   const discardRef = useRef<HTMLButtonElement>(null);
   const [pendingPlay, setPendingPlay] = useState<PendingPlay | null>(null);
   const [dismissedSeeFutureAt, setDismissedSeeFutureAt] = useState(0);
@@ -51,6 +59,18 @@ export function Table() {
   // screen entirely) always arrives before a second click could matter — this just prevents a
   // spurious "game is not over yet" error from a double click in the meantime.
   const [playAgainClicked, setPlayAgainClicked] = useState(false);
+
+  useEffect(() => {
+    if (!lastElimination) return;
+    const isOwn = lastElimination.seat === useGameStore.getState().view?.you;
+    const delay = isOwn ? OWN_ELIMINATION_DISMISS_MS : OPPONENT_ELIMINATION_DISMISS_MS;
+    const timeout = window.setTimeout(() => {
+      useGameStore.setState((state) =>
+        state.lastElimination === lastElimination ? { lastElimination: null } : {},
+      );
+    }, delay);
+    return () => window.clearTimeout(timeout);
+  }, [lastElimination]);
 
   if (!view) return null;
 
@@ -128,6 +148,10 @@ export function Table() {
         />
       )}
 
+      {lastElimination && lastElimination.seat === view.you && (
+        <EliminationOverlay card={lastElimination.card} />
+      )}
+
       {seats.map(({ seat, xPercent, yPercent }) => {
         const player = view.players[seat]!;
         return (
@@ -142,6 +166,9 @@ export function Table() {
               alive={player.alive}
               isActiveTurn={view.currentPlayer === seat}
             />
+            {lastElimination && lastElimination.seat === seat && (
+              <EliminationFlash card={lastElimination.card} />
+            )}
           </div>
         );
       })}
