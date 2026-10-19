@@ -142,6 +142,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       socket.emit("peekTopOfDeck", {}, (res: Ack<{ cards: Card[] }>) => {
         if (res.ok) resolve(res.cards);
         else reject(new Error(res.error));
+        console.log("peekTopOfDeck result", res.ok, res.ok ? res.cards : res.error);
       });
     }),
 

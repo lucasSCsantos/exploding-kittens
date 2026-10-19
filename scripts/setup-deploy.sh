@@ -186,71 +186,77 @@ finish() {
 TOTAL_STAGES=5
 REPO_SLUG="lucasSCsantos/exploding-kittens"
 
-banner "Continuous deployment setup (Railway)"
+banner "Continuous deployment setup (Render)"
 
 # ── Stage 1: account ───────────────────────────────────────────────────────
-stage "Create a Railway account"
-say "Railway is the recommended host here: it deploys straight from a GitHub"
-say "repo with zero YAML, and its free tier covers a project like this one."
-say "(Render works too, if you'd rather use it — same idea, different screens.)"
-open_url "https://railway.app/login"
-step "Sign up / log in. Choosing 'Continue with GitHub' makes Stage 2 trivial,"
-step "since Railway and GitHub are already linked."
+stage "Create a Render account"
+say "Render deploys straight from a GitHub repo with zero YAML required, and"
+say "its free tier covers a project like this one (it does spin down after"
+say "15 min idle on the free plan — fine for a friends game, mention it if"
+say "that matters to you)."
+open_url "https://dashboard.render.com/register"
+step "Sign up / log in. Choosing 'GitHub' makes Stage 2 trivial, since Render"
+step "and GitHub are already linked."
 pause "Signed in? Press Enter to continue."
 
-# ── Stage 2: connect the repo ──────────────────────────────────────────────
+# ── Stage 2: connect the repo + create the Web Service ─────────────────────
 stage "Connect the GitHub repo"
-open_url "https://railway.app/new"
-step "Choose 'Deploy from GitHub repo'."
-step "If prompted, install/authorize the Railway GitHub App and grant it"
-step "access to '$REPO_SLUG' (or all repos, your call)."
-step "Select '$REPO_SLUG' from the list to create the service."
-note "Railway auto-detects Node via Nixpacks; we'll override the commands next."
-pause "Service created from the repo? Press Enter to continue."
+open_url "https://dashboard.render.com/select-repo?type=web"
+step "If prompted, click 'Configure account' to install/authorize the Render"
+step "GitHub App, and grant it access to '$REPO_SLUG' (or all repos, your call)."
+step "Select '$REPO_SLUG' from the list to start creating a new Web Service."
+note "Render auto-detects Node; we'll set the exact commands next."
+pause "Repo connected and the 'New Web Service' form is open? Press Enter to continue."
 
-# ── Stage 3: build/start commands + env ────────────────────────────────────
+# ── Stage 3: build/start commands + env ─────────────────────────────────────
 stage "Set build & start commands"
-say "Open the new service, then its Settings tab."
-step "Under 'Build', set Build Command to:  npm run build"
-step "Under 'Deploy', set Start Command to:  npm start"
+say "On the New Web Service form (or Settings, if you're editing an existing one):"
+step "Set Runtime to:  Node"
+step "Set Build Command to:  npm run build"
+step "Set Start Command to:  npm start"
+step "Pick the Free instance type (or a paid one if you'd rather avoid spin-down)."
 note "No app env vars are required yet: the server already reads PORT from"
-note "process.env.PORT, and Railway injects \$PORT into every service automatically."
+note "process.env.PORT, and Render injects \$PORT into every service automatically."
 if confirm "Want to add any extra env vars (e.g. NODE_ENV=production) now?"; then
   ask EXTRA_ENV_NAME "Variable name:"
   ask EXTRA_ENV_VALUE "Variable value:"
-  step "In the service's Variables tab, add $EXTRA_ENV_NAME=$EXTRA_ENV_VALUE."
+  step "Under 'Advanced' → Environment Variables, add $EXTRA_ENV_NAME=$EXTRA_ENV_VALUE."
   pause "Added? Press Enter to continue."
 fi
-pause "Build/start commands saved? Press Enter to continue."
+step "Click 'Create Web Service' (or 'Save Changes') to kick off the first build."
+pause "Build/start commands saved and the first deploy is running? Press Enter to continue."
 
 # ── Stage 4: public domain ─────────────────────────────────────────────────
-stage "Generate a public domain"
-step "In the service, open Settings → Networking."
-step "Click 'Generate Domain' under Public Networking."
-ask PUBLIC_URL "Paste the generated URL (e.g. https://xxx.up.railway.app):"
+stage "Confirm the public domain"
+say "Render assigns a public *.onrender.com URL automatically on creation —"
+say "no separate 'generate domain' step like some hosts require."
+step "Open the service's page; the URL is shown at the top, under the service name."
+ask PUBLIC_URL "Paste that URL (e.g. https://exploding-kittens.onrender.com):"
 say "Opening it now to confirm the current build is live..."
 open_url "$PUBLIC_URL"
 if confirm "Did the app load at $PUBLIC_URL?"; then
   note "Public URL confirmed: $PUBLIC_URL"
 else
-  warn "Check the Deployments tab for build/start errors before moving on."
+  warn "Check the service's Logs/Events tab for build or start errors before moving on."
   SKIPPED+=("public URL not yet confirmed working: $PUBLIC_URL")
 fi
 
 # ── Stage 5: verify auto-redeploy on push to main ──────────────────────────
 stage "Verify push-to-deploy"
-say "We'll push a trivial, harmless commit to main and watch Railway redeploy"
-say "automatically, confirming the pipeline really is continuous."
-open_url "https://railway.app/dashboard"
-step "Keep the Deployments tab open so you can watch the new build land."
+say "Render auto-deploys on every push to the connected branch by default."
+say "We'll push a trivial, harmless commit to main and watch it redeploy,"
+say "confirming the pipeline really is continuous."
+open_url "https://dashboard.render.com"
+step "Open the service, then its Events (or Logs) tab, so you can watch the"
+step "new deploy land."
 if confirm "Push an empty verification commit to origin/main now?"; then
-  git commit --allow-empty -m "chore: verify Railway auto-deploy pipeline"
+  git commit --allow-empty -m "chore: verify Render auto-deploy pipeline"
   git push origin main
-  note "Pushed. Watch the Deployments tab for a new build to start."
+  note "Pushed. Watch the Events tab for a new deploy to start."
 else
   SKIPPED+=("push-to-deploy not yet verified with a commit to main")
 fi
-pause "Once Railway shows the new deployment as live, press Enter."
+pause "Once Render shows the new deploy as live, press Enter."
 if confirm "Reload $PUBLIC_URL once more — still serving the app?"; then
   open_url "$PUBLIC_URL"
   note "Auto-redeploy on push to main: confirmed."
