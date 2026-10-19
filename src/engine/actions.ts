@@ -105,10 +105,13 @@ function resolveDraw(state: GameState, position: number): GameState {
     return resolveExplodingKitten({ ...state, deck: restDeck }, drawnCard, player);
   }
 
+  console.log('aqui oh')
   const players = replacePlayer(state.players, state.currentPlayer, {
     ...player,
     hand: [...player.hand, drawnCard],
   });
+
+  console.log('aqui na real')
 
   return endTurn({ ...state, players, deck: restDeck });
 }
