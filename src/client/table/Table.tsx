@@ -151,7 +151,7 @@ export function Table() {
 
       {view.phase === "NOPE_WINDOW" && (
         <NopeWindow
-          nopeStackSize={view.nopeStack.length}
+          nopeDeadline={view.nopeDeadline}
           hand={view.hand}
           onPlayNope={(cardUid) => dispatch({ type: "PLAY_NOPE", player: view.you, cardUid })}
           onWindowClosed={() => dispatch({ type: "PASS_NOPE_WINDOW" })}

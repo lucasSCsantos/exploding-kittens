@@ -1,41 +1,47 @@
-// The Nope window: a countdown ring and a big Nope button, restarting the countdown every time
-// someone Nopes (ticket 11). There's no server yet (that's ticket 13), so the countdown lives
-// here and auto-passes the window when it runs out.
+// The Nope window: a countdown ring and a big Nope button. The server (ticket 13) owns the
+// actual close timer and restarts it on every Nope played — this just renders the shared
+// `nopeDeadline` it broadcasts, so every client's ring agrees. "Pass" lets any client race to
+// close the window early without waiting out the full countdown.
 
 import { useEffect, useState } from "react";
 import type { Card } from "../../engine/types.js";
 
 export interface NopeWindowProps {
-  /** How many Nope plays are already stacked — the countdown restarts whenever this grows. */
-  nopeStackSize: number;
+  /** Epoch ms when the server will auto-close this window; purely cosmetic countdown input. */
+  nopeDeadline: number | null;
   /** The active seat's own hand, to offer their Nope card if they hold one. */
   hand: Card[];
   onPlayNope: (cardUid: string) => void;
   onWindowClosed: () => void;
 }
 
-const COUNTDOWN_SECONDS = 4;
+// Only used before the first server deadline ever arrives (e.g. a stray render) — once a real
+// `nopeDeadline` shows up, the ring's 100% mark is derived from it instead, so it stays accurate
+// whatever the server's actual configured window turns out to be.
+const FALLBACK_WINDOW_MS = 4000;
 const TICK_MS = 100;
 
-export function NopeWindow({ nopeStackSize, hand, onPlayNope, onWindowClosed }: NopeWindowProps) {
-  const [remainingMs, setRemainingMs] = useState(COUNTDOWN_SECONDS * 1000);
+function remainingMs(deadline: number | null): number {
+  if (deadline === null) return FALLBACK_WINDOW_MS;
+  return Math.max(0, deadline - Date.now());
+}
+
+export function NopeWindow({ nopeDeadline, hand, onPlayNope, onWindowClosed }: NopeWindowProps) {
+  const [remaining, setRemaining] = useState(() => remainingMs(nopeDeadline));
+  // The window's total length, captured the moment each new deadline is observed — the ring's
+  // 100% reference point, since the server's actual nopeWindowMs isn't sent to the client.
+  const [totalMs, setTotalMs] = useState(() => remainingMs(nopeDeadline));
 
   useEffect(() => {
-    setRemainingMs(COUNTDOWN_SECONDS * 1000);
-  }, [nopeStackSize]);
-
-  useEffect(() => {
+    setRemaining(remainingMs(nopeDeadline));
+    setTotalMs(remainingMs(nopeDeadline));
     const interval = window.setInterval(() => {
-      setRemainingMs((ms) => Math.max(0, ms - TICK_MS));
+      setRemaining(remainingMs(nopeDeadline));
     }, TICK_MS);
     return () => window.clearInterval(interval);
-  }, [nopeStackSize]);
+  }, [nopeDeadline]);
 
-  useEffect(() => {
-    if (remainingMs === 0) onWindowClosed();
-  }, [remainingMs, onWindowClosed]);
-
-  const progress = remainingMs / (COUNTDOWN_SECONDS * 1000);
+  const progress = Math.min(1, remaining / Math.max(1, totalMs));
   const circumference = 2 * Math.PI * 36;
   const nopeCard = hand.find((card) => card.id === "NOPE") ?? null;
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RoomManager } from "./rooms.js";
 
 describe("createRoom", () => {
@@ -204,6 +204,176 @@ describe("peekTopOfDeck", () => {
     expect(() => rooms.peekTopOfDeck(code, current)).toThrow(
       /requires holding an Alter the Future card/,
     );
+  });
+});
+
+describe("turn timer", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("auto-draws for the current player once the turn timeout elapses", () => {
+    const rooms = new RoomManager({ turnTimeoutMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+
+    const before = rooms.getView(code, host);
+    const currentId = before.currentPlayer === 0 ? "Alice" : "Bob";
+    const handSizeBefore = rooms.getView(code, currentId).hand.length;
+
+    vi.advanceTimersByTime(1000);
+
+    const handSizeAfter = rooms.getView(code, currentId).hand.length;
+    expect(handSizeAfter).toBe(handSizeBefore + 1);
+  });
+
+  it("does not auto-draw again if the player already acted before the timeout", () => {
+    const rooms = new RoomManager({ turnTimeoutMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+
+    const before = rooms.getView(code, host);
+    const currentId = before.currentPlayer === 0 ? "Alice" : "Bob";
+
+    vi.advanceTimersByTime(500);
+    rooms.applyAction(code, currentId, { type: "DRAW" });
+
+    // The manual draw already ended the turn and rescheduled a fresh timer for the next player;
+    // advancing past the *original* deadline must not double-act on the now-stale turn.
+    expect(() => vi.advanceTimersByTime(400)).not.toThrow();
+    expect(rooms.getView(code, currentId).phase).toBe("ACTION");
+  });
+});
+
+describe("Nope window timer", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Finds a seed where the current player holds an Attack card and the other player holds a
+   * Nope card, to open and then re-stack a Nope window. */
+  function roomWithCurrentPlayerHoldingAttack(options?: {
+    nopeWindowMs?: number;
+    requireOtherHoldsNope?: boolean;
+  }) {
+    for (let seed = 1; seed < 500; seed++) {
+      const rooms = new RoomManager(options);
+      const { code, playerId: host } = rooms.createRoom("Alice");
+      rooms.joinRoom(code, "Bob");
+      rooms.startGame(code, host, { seed });
+
+      const view = rooms.getView(code, host);
+      const current = view.currentPlayer === 0 ? "Alice" : "Bob";
+      const other = current === "Alice" ? "Bob" : "Alice";
+      const attackCard = rooms.getView(code, current).hand.find((c) => c.id === "ATK");
+      const otherHandHasNope = rooms.getView(code, other).hand.some((c) => c.id === "NOPE");
+      if (attackCard && (!options?.requireOtherHoldsNope || otherHandHasNope)) {
+        return { rooms, code, current, other, attackCardUid: attackCard.uid };
+      }
+    }
+    throw new Error("no seed found matching the requirements");
+  }
+
+  it("auto-resolves the pending action once the Nope window elapses", () => {
+    const { rooms, code, current, attackCardUid } = roomWithCurrentPlayerHoldingAttack({
+      nopeWindowMs: 1000,
+    });
+
+    rooms.applyAction(code, current, { type: "PLAY_ATTACK", cardUid: attackCardUid });
+    expect(rooms.getView(code, current).phase).toBe("NOPE_WINDOW");
+
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getView(code, current).phase).toBe("ACTION");
+  });
+
+  it("restarts the window's timer every time a new Nope is played", () => {
+    const { rooms, code, current, other, attackCardUid } = roomWithCurrentPlayerHoldingAttack({
+      nopeWindowMs: 1000,
+      requireOtherHoldsNope: true,
+    });
+    rooms.applyAction(code, current, { type: "PLAY_ATTACK", cardUid: attackCardUid });
+
+    const nopeCard = rooms.getView(code, other).hand.find((c) => c.id === "NOPE");
+    if (!nopeCard) throw new Error("test setup assumed Bob held a Nope card");
+
+    vi.advanceTimersByTime(700);
+    rooms.applyAction(code, other, { type: "PLAY_NOPE", player: rooms.getView(code, other).you, cardUid: nopeCard.uid });
+
+    // The original 1000ms deadline would have elapsed by now, but the Nope should have reset it.
+    vi.advanceTimersByTime(700);
+    expect(rooms.getView(code, current).phase).toBe("NOPE_WINDOW");
+
+    vi.advanceTimersByTime(300);
+    expect(rooms.getView(code, current).phase).toBe("ACTION");
+  });
+});
+
+describe("disconnect grace period", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("drops a disconnected player from an unstarted room once the grace period elapses", () => {
+    const rooms = new RoomManager({ disconnectGraceMs: 1000 });
+    const { code } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)?.players.map((p) => p.id)).toEqual(["Alice"]);
+  });
+
+  it("cancels the drop if the player reconnects within the grace period", () => {
+    const rooms = new RoomManager({ disconnectGraceMs: 1000 });
+    const { code } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(500);
+    rooms.setConnected(code, "Bob", true);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)?.players.map((p) => p.id)).toEqual(["Alice", "Bob"]);
+  });
+
+
+  it("promotes another player to host if the dropped player was the host", () => {
+    const rooms = new RoomManager({ disconnectGraceMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+
+    rooms.setConnected(code, host, false);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)?.hostId).toBe("Bob");
+  });
+
+  it("does not drop a connected player's seat once the game has started", () => {
+    const rooms = new RoomManager({ disconnectGraceMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)?.players.map((p) => p.id)).toEqual(["Alice", "Bob"]);
   });
 });
 

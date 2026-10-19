@@ -16,7 +16,24 @@ vi.mock("../socket.js", () => ({
   },
 }));
 
+const savedSessions: unknown[] = [];
+let clearSessionCalls = 0;
+
+vi.mock("../session.js", () => ({
+  loadSession: () => null,
+  saveSession: (session: unknown) => {
+    savedSessions.push(session);
+  },
+  clearSession: () => {
+    clearSessionCalls++;
+  },
+}));
+
 const { useGameStore } = await import("./gameStore.js");
+
+function lastSavedSession() {
+  return savedSessions[savedSessions.length - 1];
+}
 
 function lastEmit() {
   return emitted[emitted.length - 1]!;
@@ -24,6 +41,8 @@ function lastEmit() {
 
 beforeEach(() => {
   emitted.length = 0;
+  savedSessions.length = 0;
+  clearSessionCalls = 0;
   useGameStore.setState({
     code: null,
     playerId: null,
@@ -51,6 +70,7 @@ describe("createRoom", () => {
       token: "secret",
       lastError: null,
     });
+    expect(lastSavedSession()).toEqual({ code: "ABCD", name: "Alice", token: "secret" });
   });
 
   it("records an error instead of throwing on failure", () => {
@@ -69,6 +89,7 @@ describe("joinRoom", () => {
 
     lastEmit().ack!({ ok: true, code: "ABCD", playerId: "Bob", token: "secret" });
     expect(useGameStore.getState()).toMatchObject({ playerId: "Bob", name: "Bob", token: "secret" });
+    expect(lastSavedSession()).toEqual({ code: "ABCD", name: "Bob", token: "secret" });
   });
 });
 
@@ -86,6 +107,15 @@ describe("reconnect", () => {
   it("does nothing if this socket never joined a room", () => {
     handlers.get("connect")!();
     expect(emitted).toHaveLength(0);
+  });
+
+  it("clears the stored session when the server rejects the stored token", () => {
+    useGameStore.setState({ code: "ABCD", name: "Alice", token: "stale-token" });
+    handlers.get("connect")!();
+
+    lastEmit().ack!({ ok: false, error: "that name is already taken in this room" });
+
+    expect(clearSessionCalls).toBe(1);
   });
 });
 

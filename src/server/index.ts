@@ -23,7 +23,7 @@ const httpServer = createServer(app);
 // No `cors`/explicit origin: the client always connects same-origin (same host Express serves
 // from), in dev via the Vite proxy and in production because Express serves the built client.
 const io = new Server(httpServer);
-const rooms = new RoomManager();
+const rooms = new RoomManager({ onChange: (code) => broadcastRoom(code) });
 
 type Ack<T extends object = Record<never, never>> =
   | ({ ok: true } & T)
@@ -48,7 +48,10 @@ function broadcastRoom(code: string): void {
     if (!socket) continue;
 
     if (room.state) {
-      socket.emit("view", rooms.getView(room.code, binding.playerId));
+      socket.emit("view", {
+        ...rooms.getView(room.code, binding.playerId),
+        nopeDeadline: rooms.getNopeDeadline(room.code),
+      });
     } else {
       socket.emit("lobby", {
         code: room.code,

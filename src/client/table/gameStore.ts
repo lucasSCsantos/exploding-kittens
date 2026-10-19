@@ -7,6 +7,7 @@ import type { Action } from "../../engine/actions.js";
 import type { SetupConfig } from "../../engine/setup.js";
 import type { Card } from "../../engine/types.js";
 import type { PlayerView } from "../../engine/view.js";
+import { clearSession, loadSession, saveSession } from "../session.js";
 import { socket } from "../socket.js";
 
 export interface LobbyPlayer {
@@ -14,6 +15,10 @@ export interface LobbyPlayer {
   name: string;
   connected: boolean;
 }
+
+/** The server's `view` payload: a `PlayerView` plus server-owned Nope-window timing (ticket 13),
+ * so every client renders the same countdown instead of each racing its own local timer. */
+export type ServerView = PlayerView & { nopeDeadline: number | null };
 
 type Ack<T extends object = Record<never, never>> =
   | ({ ok: true } & T)
@@ -31,7 +36,7 @@ interface GameStoreState {
   hostId: string | null;
   /** The pre-start roster; superseded by `view` once the game starts. */
   lobbyPlayers: LobbyPlayer[];
-  view: PlayerView | null;
+  view: ServerView | null;
   lastError: string | null;
   createRoom: (name: string) => void;
   joinRoom: (code: string, name: string) => void;
@@ -41,11 +46,13 @@ interface GameStoreState {
   clearError: () => void;
 }
 
+const storedSession = loadSession();
+
 export const useGameStore = create<GameStoreState>((set) => ({
-  code: null,
+  code: storedSession?.code ?? null,
   playerId: null,
-  name: null,
-  token: null,
+  name: storedSession?.name ?? null,
+  token: storedSession?.token ?? null,
   hostId: null,
   lobbyPlayers: [],
   view: null,
@@ -58,6 +65,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       (res: Ack<{ code: string; playerId: string; token: string }>) => {
         if (res.ok) {
           set({ code: res.code, playerId: res.playerId, name, token: res.token, lastError: null });
+          saveSession({ code: res.code, name, token: res.token });
         } else {
           set({ lastError: res.error });
         }
@@ -72,6 +80,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       (res: Ack<{ code: string; playerId: string; token: string }>) => {
         if (res.ok) {
           set({ code: res.code, playerId: res.playerId, name, token: res.token, lastError: null });
+          saveSession({ code: res.code, name, token: res.token });
         } else {
           set({ lastError: res.error });
         }
@@ -87,8 +96,8 @@ export const useGameStore = create<GameStoreState>((set) => ({
 
   dispatch: (action) => {
     socket.emit("action", action, (res: Ack) => {
-      // Every connected client races its own Nope-window countdown and may lose that race —
-      // that's expected, not an error worth surfacing to the player.
+      // Manually pressing "Pass" races the server's own auto-close timer (ticket 13) and may
+      // lose that race — that's expected, not an error worth surfacing to the player.
       if (!res.ok && action.type !== "PASS_NOPE_WINDOW") {
         set({ lastError: res.error });
       }
@@ -114,7 +123,7 @@ socket.on("lobby", (payload: { code: string; hostId: string; players: LobbyPlaye
   });
 });
 
-socket.on("view", (view: PlayerView) => {
+socket.on("view", (view: ServerView) => {
   useGameStore.setState({ view });
 });
 
@@ -129,7 +138,14 @@ socket.on("connect", () => {
     "joinRoom",
     { code, name, token },
     (res: Ack<{ code: string; playerId: string; token: string }>) => {
-      if (res.ok) useGameStore.setState({ playerId: res.playerId, token: res.token });
+      if (res.ok) {
+        useGameStore.setState({ playerId: res.playerId, token: res.token });
+        saveSession({ code: res.code, name, token: res.token });
+      } else {
+        // The stored token no longer reclaims this seat (room gone, name taken by someone
+        // else) — stop retrying it on every future reconnect.
+        clearSession();
+      }
     },
   );
 });

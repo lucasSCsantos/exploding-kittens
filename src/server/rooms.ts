@@ -31,6 +31,21 @@ const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O — easy to confuse 
 const CODE_LENGTH = 4;
 const MAX_PLAYERS = 10;
 
+const DEFAULT_TURN_TIMEOUT_MS = 45_000;
+const DEFAULT_NOPE_WINDOW_MS = 4_000;
+const DEFAULT_DISCONNECT_GRACE_MS = 60_000;
+
+export interface RoomManagerOptions {
+  /** §5 turn timer (ticket 13): auto-draws for the current player after this much inactivity. */
+  turnTimeoutMs?: number;
+  /** §7 Nope window (ticket 13): closes the window after this much time with no new Nope. */
+  nopeWindowMs?: number;
+  /** Ticket 13: drops a disconnected, not-yet-seated player after this long out of contact. */
+  disconnectGraceMs?: number;
+  /** Called after any server-driven (timer-fired) mutation, so the caller can re-broadcast. */
+  onChange?: (code: string) => void;
+}
+
 function randomCode(): string {
   let code = "";
   for (let i = 0; i < CODE_LENGTH; i++) {
@@ -77,6 +92,26 @@ function requireAuthorizedActor(state: GameState, playerId: string, action: Acti
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
+  private readonly turnTimeoutMs: number;
+  private readonly nopeWindowMs: number;
+  private readonly disconnectGraceMs: number;
+  private readonly onChange: (code: string) => void;
+
+  /** Auto-draw for the current player, keyed by room code — restarted on every state change. */
+  private turnTimers = new Map<string, NodeJS.Timeout>();
+  /** Auto-close the Nope window, keyed by room code — restarted on every Nope played. */
+  private nopeTimers = new Map<string, NodeJS.Timeout>();
+  /** When the open Nope window (if any) will auto-close, for clients to render a shared countdown. */
+  private nopeDeadlines = new Map<string, number>();
+  /** Drops a still-disconnected player, keyed by `${code}:${playerId}`. */
+  private disconnectTimers = new Map<string, NodeJS.Timeout>();
+
+  constructor(options: RoomManagerOptions = {}) {
+    this.turnTimeoutMs = options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
+    this.nopeWindowMs = options.nopeWindowMs ?? DEFAULT_NOPE_WINDOW_MS;
+    this.disconnectGraceMs = options.disconnectGraceMs ?? DEFAULT_DISCONNECT_GRACE_MS;
+    this.onChange = options.onChange ?? (() => {});
+  }
 
   createRoom(hostName: string): { code: string; playerId: string; token: string } {
     const name = requireName(hostName);
@@ -109,6 +144,7 @@ export class RoomManager {
         throw new Error("RoomManager: that name is already taken in this room");
       }
       existing.connected = true;
+      this.clearDisconnectTimer(code, existing.id);
       return { playerId: existing.id, token: existing.token };
     }
 
@@ -140,6 +176,7 @@ export class RoomManager {
     // The engine hands back phase SETUP; nothing in applyAction transitions it to ACTION
     // (matches the Phase-2 harness's own fix-up in the old gameStore.startGame).
     room.state = { ...createGame(names, config), phase: "ACTION" };
+    this.rescheduleTimers(code);
   }
 
   applyAction(code: string, playerId: string, action: Action): void {
@@ -149,6 +186,57 @@ export class RoomManager {
     }
     requireAuthorizedActor(room.state, playerId, action);
     room.state = engineApplyAction(room.state, action);
+    this.rescheduleTimers(code);
+  }
+
+  /** The open Nope window's auto-close time (epoch ms), for every client to render the same
+   * countdown — null outside a Nope window. */
+  getNopeDeadline(code: string): number | null {
+    return this.nopeDeadlines.get(code.trim().toUpperCase()) ?? null;
+  }
+
+  /** Applies `action` as the server itself, bypassing per-seat authorization — only for
+   * server-driven timeouts (turn/Nope), never reachable from a client message. */
+  private forceApplyAction(code: string, action: Action): void {
+    const room = this.rooms.get(code);
+    if (!room?.state) return;
+    try {
+      room.state = engineApplyAction(room.state, action);
+    } catch (err) {
+      console.error(`RoomManager: timer-driven ${action.type} failed for room ${code}`, err);
+      return;
+    }
+    this.rescheduleTimers(code);
+    this.onChange(code);
+  }
+
+  /** Clears and re-arms the turn/Nope timers to match the room's current phase — called after
+   * every state mutation, including ones timers themselves caused. */
+  private rescheduleTimers(code: string): void {
+    const existingTurnTimer = this.turnTimers.get(code);
+    if (existingTurnTimer) clearTimeout(existingTurnTimer);
+    this.turnTimers.delete(code);
+
+    const existingNopeTimer = this.nopeTimers.get(code);
+    if (existingNopeTimer) clearTimeout(existingNopeTimer);
+    this.nopeTimers.delete(code);
+    this.nopeDeadlines.delete(code);
+
+    const state = this.rooms.get(code)?.state;
+    if (!state) return;
+
+    if (state.phase === "NOPE_WINDOW") {
+      this.nopeDeadlines.set(code, Date.now() + this.nopeWindowMs);
+      this.nopeTimers.set(
+        code,
+        setTimeout(() => this.forceApplyAction(code, { type: "PASS_NOPE_WINDOW" }), this.nopeWindowMs),
+      );
+    } else if (state.phase === "ACTION") {
+      this.turnTimers.set(
+        code,
+        setTimeout(() => this.forceApplyAction(code, { type: "DRAW" }), this.turnTimeoutMs),
+      );
+    }
   }
 
   /** The top of the deck, for the current player to choose an Alter the Future order before
@@ -183,11 +271,52 @@ export class RoomManager {
     return this.rooms.get(code.trim().toUpperCase());
   }
 
+  /** Marks a seat (dis)connected. A disconnect starts the grace-period drop timer; a reconnect
+   * cancels it. Reconnecting is always possible via `joinRoom`'s token check regardless of this
+   * flag — this only governs whether an abandoned *lobby* seat frees itself up. Once the game
+   * has started the engine has no way to remove a seated player without corrupting its
+   * N-1-kitten/defuse-count invariants, so a mid-game disconnect is tracked (`connected: false`)
+   * but never dropped; the turn timer keeps the game moving in the meantime. */
   setConnected(code: string, playerId: string, connected: boolean): void {
     const player = this.rooms.get(code)?.players.find((p) => p.id === playerId);
-    if (player) {
-      player.connected = connected;
+    if (!player) return;
+    player.connected = connected;
+    this.clearDisconnectTimer(code, playerId);
+
+    if (!connected) {
+      this.disconnectTimers.set(
+        `${code}:${playerId}`,
+        setTimeout(() => this.dropIfStillDisconnected(code, playerId), this.disconnectGraceMs),
+      );
     }
+  }
+
+  /** Cancels a pending grace-period drop — on any reconnect, whether through `setConnected` or
+   * the token-based reclaim in `joinRoom`. */
+  private clearDisconnectTimer(code: string, playerId: string): void {
+    const timerKey = `${code}:${playerId}`;
+    const existing = this.disconnectTimers.get(timerKey);
+    if (existing) clearTimeout(existing);
+    this.disconnectTimers.delete(timerKey);
+  }
+
+  private dropIfStillDisconnected(code: string, playerId: string): void {
+    this.disconnectTimers.delete(`${code}:${playerId}`);
+    const room = this.rooms.get(code);
+    if (!room || room.state) return;
+
+    const player = room.players.find((p) => p.id === playerId);
+    if (!player || player.connected) return;
+
+    room.players = room.players.filter((p) => p.id !== playerId);
+    if (room.players.length === 0) {
+      this.rooms.delete(code);
+      return;
+    }
+    if (room.hostId === playerId) {
+      room.hostId = room.players[0]!.id;
+    }
+    this.onChange(code);
   }
 
   private requireRoom(code: string): Room {
