@@ -125,6 +125,18 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("playAgain", (_payload: unknown, ack: (res: Ack) => void) => {
+    const binding = socketBindings.get(socket.id);
+    if (!binding) return ack({ ok: false, error: "not in a room" });
+    try {
+      rooms.playAgain(binding.code, binding.playerId);
+      ack({ ok: true });
+      broadcastRoom(binding.code);
+    } catch (err) {
+      ack({ ok: false, error: errorMessage(err) });
+    }
+  });
+
   socket.on("action", (action: Action, ack: (res: Ack) => void) => {
     const binding = socketBindings.get(socket.id);
     if (!binding) return ack({ ok: false, error: "not in a room" });

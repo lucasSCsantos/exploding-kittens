@@ -201,4 +201,34 @@ describe("server-pushed events", () => {
 
     expect(useGameStore.getState().view).toBe(view);
   });
+
+  it("lobby event clears a stale view, e.g. after play again resets the room", () => {
+    const view = { you: 0, phase: "GAME_OVER" };
+    handlers.get("view")!(view);
+
+    handlers.get("lobby")!({
+      code: "ABCD",
+      hostId: "Alice",
+      players: [{ id: "Alice", name: "Alice", connected: true }],
+      config: {
+        attackStacking: true,
+        comboScope: "cats-only",
+        feralPairRule: "requires-real-cat",
+        extraDefuses: "default",
+      },
+    });
+
+    expect(useGameStore.getState().view).toBeNull();
+  });
+});
+
+describe("playAgain", () => {
+  it("emits playAgain and surfaces an error ack", () => {
+    useGameStore.getState().playAgain();
+
+    expect(lastEmit().event).toBe("playAgain");
+    lastEmit().ack!({ ok: false, error: "only the host can start a new round" });
+
+    expect(useGameStore.getState().lastError).toBe("only the host can start a new round");
+  });
 });

@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* Phones only (project description §8: the table needs landscape width) — `pointer: coarse`
+   excludes a narrow/resized desktop browser window, which matches the width+orientation check
+   but can't be "rotated" and has no finger to drive the touch-only interactions beneath it. */
+.rotate-prompt {
+  display: none;
+}
+
+@media (orientation: portrait) and (max-width: 768px) and (pointer: coarse) {
+  .rotate-prompt {
+    display: flex;
+  }
+}

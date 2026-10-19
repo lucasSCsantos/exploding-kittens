@@ -419,6 +419,103 @@ describe("disconnect grace period", () => {
   });
 });
 
+describe("playAgain", () => {
+  function gameOverRoom() {
+    const rooms = new RoomManager();
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+    return { rooms, code, host };
+  }
+
+  it("only the host can start a new round", () => {
+    const { rooms, code } = gameOverRoom();
+    expect(() => rooms.playAgain(code, "Bob")).toThrow(/only the host/);
+  });
+
+  it("rejects starting a new round before the game is over", () => {
+    const { rooms, code, host } = gameOverRoom();
+    expect(() => rooms.playAgain(code, host)).toThrow(/not over yet/);
+  });
+
+  it("drops back to the pre-game lobby, keeping the same room and players", () => {
+    const { rooms, code, host } = gameOverRoom();
+    // Force the game to GAME_OVER directly rather than playing it out card by card.
+    const room = rooms.getRoom(code)!;
+    room.state = { ...room.state!, phase: "GAME_OVER", winner: 0 };
+
+    rooms.playAgain(code, host);
+
+    expect(rooms.getRoom(code)?.state).toBeNull();
+    expect(rooms.getRoom(code)?.players.map((p) => p.id)).toEqual(["Alice", "Bob"]);
+    expect(() => rooms.startGame(code, host, { seed: 2 })).not.toThrow();
+  });
+});
+
+describe("room cleanup", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("deletes a started room once every seat has been disconnected past the grace period", () => {
+    const rooms = new RoomManager({ roomEmptyMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+
+    rooms.setConnected(code, "Alice", false);
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)).toBeUndefined();
+  });
+
+  it("does not delete the room if anyone reconnects before the grace period elapses", () => {
+    const rooms = new RoomManager({ roomEmptyMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+
+    rooms.setConnected(code, "Alice", false);
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(500);
+    rooms.setConnected(code, "Bob", true);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)).toBeDefined();
+  });
+
+  it("does not delete the room while at least one seat stays connected", () => {
+    const rooms = new RoomManager({ roomEmptyMs: 1000 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 });
+
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)).toBeDefined();
+  });
+
+  it("clears the room's own scheduled timers once it is deleted, leaving nothing pending", () => {
+    const rooms = new RoomManager({ roomEmptyMs: 1000, turnTimeoutMs: 500 });
+    const { code, playerId: host } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, host, { seed: 1 }); // arms a turn timer alongside the room-empty one
+
+    rooms.setConnected(code, "Alice", false);
+    rooms.setConnected(code, "Bob", false);
+    vi.advanceTimersByTime(1000);
+
+    expect(rooms.getRoom(code)).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe("getView", () => {
   it("never exposes another player's hand", () => {
     const rooms = new RoomManager();

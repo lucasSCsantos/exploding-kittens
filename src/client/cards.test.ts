@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { assignDesigns, getCardImage, getCardBackImage, CARD_TYPE_TO_FILES } from "./cards.js";
+import { assignDesigns, cardLabel, getCardImage, getCardBackImage, CARD_TYPE_TO_FILES } from "./cards.js";
 import type { CardId } from "../engine/types.js";
 import type { PlayerView } from "../engine/view.js";
 
@@ -68,6 +68,14 @@ describe("getCardImage", () => {
       const uid = `${cardId}-instance`;
       assignDesigns(emptyView({ hand: [{ id: cardId, uid }] }));
       expect(getCardImage(cardId, uid)).toMatch(/\S/);
+    }
+  });
+});
+
+describe("cardLabel", () => {
+  it("gives every CardId a non-empty, human-readable label", () => {
+    for (const cardId of ALL_CARD_IDS) {
+      expect(cardLabel(cardId)).toMatch(/\S/);
     }
   });
 });

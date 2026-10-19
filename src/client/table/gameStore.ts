@@ -44,6 +44,7 @@ interface GameStoreState {
   joinRoom: (code: string, name: string) => void;
   updateConfig: (patch: Partial<LobbyConfig>) => void;
   startGame: (config?: SetupConfig) => void;
+  playAgain: () => void;
   dispatch: (action: Action) => void;
   peekTopOfDeck: () => Promise<Card[]>;
   clearError: () => void;
@@ -104,6 +105,12 @@ export const useGameStore = create<GameStoreState>((set) => ({
     });
   },
 
+  playAgain: () => {
+    socket.emit("playAgain", {}, (res: Ack) => {
+      if (!res.ok) set({ lastError: res.error });
+    });
+  },
+
   dispatch: (action) => {
     socket.emit("action", action, (res: Ack) => {
       // Manually pressing "Pass" races the server's own auto-close timer (ticket 13) and may
@@ -133,6 +140,9 @@ socket.on(
       hostId: payload.hostId,
       lobbyPlayers: payload.players,
       config: payload.config,
+      // The server only ever sends "lobby" when there's no active game (including right after
+      // "play again" resets the room) — drop any stale GAME_OVER view so the app renders Lobby.
+      view: null,
     });
   },
 );

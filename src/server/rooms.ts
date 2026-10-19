@@ -41,6 +41,7 @@ const MAX_PLAYERS = 10;
 const DEFAULT_TURN_TIMEOUT_MS = 45_000;
 const DEFAULT_NOPE_WINDOW_MS = 4_000;
 const DEFAULT_DISCONNECT_GRACE_MS = 60_000;
+const DEFAULT_ROOM_EMPTY_MS = 30 * 60_000;
 
 export interface RoomManagerOptions {
   /** §5 turn timer (ticket 13): auto-draws for the current player after this much inactivity. */
@@ -49,6 +50,10 @@ export interface RoomManagerOptions {
   nopeWindowMs?: number;
   /** Ticket 13: drops a disconnected, not-yet-seated player after this long out of contact. */
   disconnectGraceMs?: number;
+  /** Ticket 16: deletes a room once every seat has been disconnected for this long — covers
+   * mid-game abandonment, which `disconnectGraceMs` doesn't (a seated player is never dropped
+   * once the game has started). */
+  roomEmptyMs?: number;
   /** Called after any server-driven (timer-fired) mutation, so the caller can re-broadcast. */
   onChange?: (code: string) => void;
 }
@@ -102,6 +107,7 @@ export class RoomManager {
   private readonly turnTimeoutMs: number;
   private readonly nopeWindowMs: number;
   private readonly disconnectGraceMs: number;
+  private readonly roomEmptyMs: number;
   private readonly onChange: (code: string) => void;
 
   /** Auto-draw for the current player, keyed by room code — restarted on every state change. */
@@ -112,11 +118,14 @@ export class RoomManager {
   private nopeDeadlines = new Map<string, number>();
   /** Drops a still-disconnected player, keyed by `${code}:${playerId}`. */
   private disconnectTimers = new Map<string, NodeJS.Timeout>();
+  /** Deletes a room once every seat in it has been disconnected this long, keyed by room code. */
+  private roomEmptyTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(options: RoomManagerOptions = {}) {
     this.turnTimeoutMs = options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
     this.nopeWindowMs = options.nopeWindowMs ?? DEFAULT_NOPE_WINDOW_MS;
     this.disconnectGraceMs = options.disconnectGraceMs ?? DEFAULT_DISCONNECT_GRACE_MS;
+    this.roomEmptyMs = options.roomEmptyMs ?? DEFAULT_ROOM_EMPTY_MS;
     this.onChange = options.onChange ?? (() => {});
   }
 
@@ -153,6 +162,7 @@ export class RoomManager {
       }
       existing.connected = true;
       this.clearDisconnectTimer(code, existing.id);
+      this.rescheduleRoomEmptyTimer(code);
       return { playerId: existing.id, token: existing.token };
     }
 
@@ -196,6 +206,21 @@ export class RoomManager {
     // The engine hands back phase SETUP; nothing in applyAction transitions it to ACTION
     // (matches the Phase-2 harness's own fix-up in the old gameStore.startGame).
     room.state = { ...createGame(names, { ...room.config, ...overrides }), phase: "ACTION" };
+    this.rescheduleTimers(code);
+  }
+
+  /** Host-only: starts a new round in the same room with the same players (project description
+   * §6 step 5) by dropping back to the pre-game lobby state — the host then starts it again via
+   * `startGame`, which re-deals from the same roster and config. */
+  playAgain(code: string, requesterId: string): void {
+    const room = this.requireRoom(code);
+    if (requesterId !== room.hostId) {
+      throw new Error("RoomManager: only the host can start a new round");
+    }
+    if (room.state?.phase !== "GAME_OVER") {
+      throw new Error("RoomManager: the game is not over yet");
+    }
+    room.state = null;
     this.rescheduleTimers(code);
   }
 
@@ -309,6 +334,56 @@ export class RoomManager {
         setTimeout(() => this.dropIfStillDisconnected(code, playerId), this.disconnectGraceMs),
       );
     }
+    this.rescheduleRoomEmptyTimer(code);
+  }
+
+  /** Re-arms (or cancels) the whole-room cleanup timer to match whether every seat is currently
+   * disconnected — called on every connect/disconnect, mirroring `rescheduleTimers`. */
+  private rescheduleRoomEmptyTimer(code: string): void {
+    const existing = this.roomEmptyTimers.get(code);
+    if (existing) clearTimeout(existing);
+    this.roomEmptyTimers.delete(code);
+
+    const room = this.rooms.get(code);
+    if (!room || room.players.length === 0) return;
+    if (room.players.some((p) => p.connected)) return;
+
+    this.roomEmptyTimers.set(
+      code,
+      setTimeout(() => this.deleteIfStillEmpty(code), this.roomEmptyMs),
+    );
+  }
+
+  private deleteIfStillEmpty(code: string): void {
+    this.roomEmptyTimers.delete(code);
+    const room = this.rooms.get(code);
+    if (!room) return;
+    if (room.players.length > 0 && room.players.every((p) => !p.connected)) {
+      this.rooms.delete(code);
+      this.clearAllTimers(code, room.players.map((p) => p.id));
+    }
+  }
+
+  /** Clears every timer a room could have scheduled — turn/Nope, room-empty, and each player's
+   * disconnect-grace timer — called on every room deletion path so a stray `setTimeout` doesn't
+   * outlive the room it was scheduled for. */
+  private clearAllTimers(code: string, playerIds: string[]): void {
+    const turnTimer = this.turnTimers.get(code);
+    if (turnTimer) clearTimeout(turnTimer);
+    this.turnTimers.delete(code);
+
+    const nopeTimer = this.nopeTimers.get(code);
+    if (nopeTimer) clearTimeout(nopeTimer);
+    this.nopeTimers.delete(code);
+    this.nopeDeadlines.delete(code);
+
+    const roomEmptyTimer = this.roomEmptyTimers.get(code);
+    if (roomEmptyTimer) clearTimeout(roomEmptyTimer);
+    this.roomEmptyTimers.delete(code);
+
+    for (const playerId of playerIds) {
+      this.clearDisconnectTimer(code, playerId);
+    }
   }
 
   /** Cancels a pending grace-period drop — on any reconnect, whether through `setConnected` or
@@ -331,6 +406,7 @@ export class RoomManager {
     room.players = room.players.filter((p) => p.id !== playerId);
     if (room.players.length === 0) {
       this.rooms.delete(code);
+      this.clearAllTimers(code, []);
       return;
     }
     if (room.hostId === playerId) {

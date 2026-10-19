@@ -16,8 +16,10 @@ import { TargetPicker } from "../overlays/TargetPicker.js";
 import { assignDesigns } from "../cards.js";
 import { DiscardPile } from "./DiscardPile.js";
 import { DrawPile } from "./DrawPile.js";
+import { EventLog } from "./EventLog.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
+import { RotatePrompt } from "./RotatePrompt.js";
 import { useGameStore } from "./gameStore.js";
 import { opponentSeatPositions } from "./layout.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
@@ -36,11 +38,18 @@ type PendingPlay =
 export function Table() {
   const dispatch = useGameStore((s) => s.dispatch);
   const peekTopOfDeck = useGameStore((s) => s.peekTopOfDeck);
+  const playAgain = useGameStore((s) => s.playAgain);
   const lastError = useGameStore((s) => s.lastError);
   const view = useGameStore((s) => s.view);
+  const playerId = useGameStore((s) => s.playerId);
+  const hostId = useGameStore((s) => s.hostId);
   const discardRef = useRef<HTMLButtonElement>(null);
   const [pendingPlay, setPendingPlay] = useState<PendingPlay | null>(null);
   const [dismissedSeeFutureAt, setDismissedSeeFutureAt] = useState(0);
+  // Once the host clicks "Play again", the server's `lobby` broadcast (which leaves the game
+  // screen entirely) always arrives before a second click could matter — this just prevents a
+  // spurious "game is not over yet" error from a double click in the meantime.
+  const [playAgainClicked, setPlayAgainClicked] = useState(false);
 
   if (!view) return null;
 
@@ -102,9 +111,28 @@ export function Table() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-gradient-to-b from-green-900 to-green-950">
+      <RotatePrompt />
+
+      <EventLog players={view.players} playHistory={view.playHistory} />
+
       {view.winner !== null && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70">
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-black/70">
           <p className="text-3xl font-bold text-amber-300">{view.players[view.winner]!.id} wins!</p>
+          {playerId === hostId ? (
+            <button
+              type="button"
+              disabled={playAgainClicked}
+              onClick={() => {
+                setPlayAgainClicked(true);
+                playAgain();
+              }}
+              className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 disabled:opacity-50"
+            >
+              Play again
+            </button>
+          ) : (
+            <p className="text-sm text-neutral-300">Waiting for the host to start a new round…</p>
+          )}
         </div>
       )}
 

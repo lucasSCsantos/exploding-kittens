@@ -24,6 +24,31 @@ export const CARD_TYPE_TO_FILES: Record<CardId, string[]> = {
   FERAL: ["feral_cat.jpg"],
 };
 
+/** Human-readable names for the event log (ticket 16) and anywhere else a card needs prose. */
+export const CARD_LABELS: Record<CardId, string> = {
+  EK: "Exploding Kitten",
+  DEF: "Defuse",
+  NOPE: "Nope",
+  ATK: "Attack",
+  TATK: "Targeted Attack",
+  SKIP: "Skip",
+  FAV: "Favor",
+  SHUF: "Shuffle",
+  STF: "See the Future",
+  ATF: "Alter the Future",
+  DFB: "Draw from the Bottom",
+  CAT_TACOCAT: "Tacocat",
+  CAT_HAIRYPOTATO: "Hairy Potato Cat",
+  CAT_RAINBOW: "Rainbow Ralphing Cat",
+  CAT_BEARD: "Beard Cat",
+  CAT_CATTERMELON: "Cattermelon",
+  FERAL: "Feral Cat",
+};
+
+export function cardLabel(cardId: CardId): string {
+  return CARD_LABELS[cardId];
+}
+
 const CARD_BACK_FILE = "back.jpg";
 
 const images = import.meta.glob("../../explodding/*.jpg", { eager: true }) as Record<
