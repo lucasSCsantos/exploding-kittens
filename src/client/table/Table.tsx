@@ -1,28 +1,36 @@
 // The table screen: felt background, seats around the edge, draw/discard piles, the active
-// seat's hand, and a dev-only seat switcher so one device can hot-seat the whole game
-// (ticket 10).
+// seat's hand, a dev-only seat switcher (ticket 10), and every special-moment overlay the rules
+// need — Nope window, See/Alter the Future, Defuse reinsertion, Favor, and combos (ticket 11).
 
-import { useRef } from "react";
-import type { Action } from "../../engine/actions.js";
+import { useRef, useState } from "react";
 import type { CardId } from "../../engine/types.js";
+import { AlterTheFuture } from "../overlays/AlterTheFuture.js";
+import { DefuseReinsert } from "../overlays/DefuseReinsert.js";
+import { DiscardPicker } from "../overlays/DiscardPicker.js";
+import { FavorPrompt } from "../overlays/FavorPrompt.js";
+import { NamedCardPicker } from "../overlays/NamedCardPicker.js";
+import { NopeWindow } from "../overlays/NopeWindow.js";
+import { SeeTheFuture } from "../overlays/SeeTheFuture.js";
+import { TargetPicker } from "../overlays/TargetPicker.js";
 import { assignDesigns } from "../cards.js";
-import { CardFace } from "./CardFace.js";
 import { DiscardPile } from "./DiscardPile.js";
 import { DrawPile } from "./DrawPile.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
 import { useActivePlayerView, useGameStore } from "./gameStore.js";
 import { opponentSeatPositions } from "./layout.js";
+import { classifySelectionShape, classifySinglePlay } from "./selection.js";
+import type { Card } from "../../engine/types.js";
 
-/** Action cards playable standalone, with no target or extra parameters — the rest (targeted
- * attack, favor, combos, nope) are ticket 11's overlays. */
-const SIMPLE_PLAYS: Partial<Record<CardId, (cardUid: string) => Action>> = {
-  ATK: (cardUid) => ({ type: "PLAY_ATTACK", cardUid }),
-  SKIP: (cardUid) => ({ type: "PLAY_SKIP", cardUid }),
-  SHUF: (cardUid) => ({ type: "PLAY_SHUFFLE", cardUid }),
-  STF: (cardUid) => ({ type: "PLAY_SEE_FUTURE", cardUid }),
-  DFB: (cardUid) => ({ type: "PLAY_DRAW_FROM_BOTTOM", cardUid }),
-};
+/** State machine for "the player selected cards and pressed Play, but we still need more input
+ * before we know the full Action to dispatch" (targets, a named card, a discard pick, an order). */
+type PendingPlay =
+  | { kind: "target"; cardUid: string; toAction: (cardUid: string, target: number) => import("../../engine/actions.js").Action }
+  | { kind: "alterFuture"; cardUid: string }
+  | { kind: "pairTarget"; cardUids: [string, string] }
+  | { kind: "tripleTarget"; cardUids: [string, string, string] }
+  | { kind: "tripleName"; cardUids: [string, string, string]; target: number }
+  | { kind: "fiveDifferent"; cardUids: [string, string, string, string, string] };
 
 export function Table() {
   const game = useGameStore((s) => s.game);
@@ -32,6 +40,8 @@ export function Table() {
   const lastError = useGameStore((s) => s.lastError);
   const view = useActivePlayerView();
   const discardRef = useRef<HTMLButtonElement>(null);
+  const [pendingPlay, setPendingPlay] = useState<PendingPlay | null>(null);
+  const [dismissedSeeFutureAt, setDismissedSeeFutureAt] = useState(0);
 
   if (!game || !view) return null;
 
@@ -39,6 +49,52 @@ export function Table() {
 
   const isYourTurn = view.currentPlayer === view.you && view.phase === "ACTION";
   const seats = opponentSeatPositions(view.players.length, view.you);
+
+  function handlePlaySelection(cards: Card[]) {
+    const shape = classifySelectionShape(cards);
+    switch (shape.size) {
+      case 1: {
+        const play = classifySinglePlay(shape.cards[0].id);
+        if (play.kind === "simple") dispatch(play.toAction(shape.cards[0].uid));
+        else if (play.kind === "target") {
+          setPendingPlay({ kind: "target", cardUid: shape.cards[0].uid, toAction: play.toAction });
+        } else if (play.kind === "alterFuture") {
+          setPendingPlay({ kind: "alterFuture", cardUid: shape.cards[0].uid });
+        }
+        break;
+      }
+      case 2:
+        setPendingPlay({ kind: "pairTarget", cardUids: [shape.cards[0].uid, shape.cards[1].uid] });
+        break;
+      case 3:
+        setPendingPlay({
+          kind: "tripleTarget",
+          cardUids: [shape.cards[0].uid, shape.cards[1].uid, shape.cards[2].uid],
+        });
+        break;
+      case 5:
+        setPendingPlay({
+          kind: "fiveDifferent",
+          cardUids: shape.cards.map((c) => c.uid) as [string, string, string, string, string],
+        });
+        break;
+      default:
+        break;
+    }
+  }
+
+  const lastHistoryEntry = view.playHistory[view.playHistory.length - 1];
+  const showSeeFuture =
+    view.phase === "ACTION" &&
+    lastHistoryEntry !== undefined &&
+    lastHistoryEntry.player === view.you &&
+    lastHistoryEntry.effect.kind === "SEE_FUTURE" &&
+    !lastHistoryEntry.noped &&
+    view.playHistory.length > dismissedSeeFutureAt;
+  const seenFutureCards = view.knownDeck
+    .filter((entry) => entry.position < 3)
+    .sort((a, b) => a.position - b.position)
+    .map((entry) => entry.card);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-gradient-to-b from-green-900 to-green-950">
@@ -59,9 +115,7 @@ export function Table() {
 
       {view.winner !== null && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70">
-          <p className="text-3xl font-bold text-amber-300">
-            {game.players[view.winner]!.id} wins!
-          </p>
+          <p className="text-3xl font-bold text-amber-300">{game.players[view.winner]!.id} wins!</p>
         </div>
       )}
 
@@ -96,69 +150,119 @@ export function Table() {
         <Hand
           hand={view.hand}
           canPlay={isYourTurn}
-          isPlayable={(cardId) => cardId in SIMPLE_PLAYS}
-          onPlay={(card) => {
-            const toAction = SIMPLE_PLAYS[card.id];
-            if (toAction) dispatch(toAction(card.uid));
+          isSimplePlayable={(cardId: CardId) => classifySinglePlay(cardId).kind === "simple"}
+          onSimplePlay={(card) => {
+            const play = classifySinglePlay(card.id);
+            if (play.kind === "simple") dispatch(play.toAction(card.uid));
           }}
+          onPlaySelection={handlePlaySelection}
           getDiscardRect={() => discardRef.current?.getBoundingClientRect() ?? null}
         />
       </div>
 
       {view.phase === "NOPE_WINDOW" && (
-        <div className="absolute inset-x-0 bottom-32 flex justify-center gap-2">
-          {view.hand.some((card) => card.id === "NOPE") && (
-            <button
-              type="button"
-              onClick={() => {
-                const nope = view.hand.find((card) => card.id === "NOPE")!;
-                dispatch({ type: "PLAY_NOPE", player: view.you, cardUid: nope.uid });
-              }}
-              className="rounded-full bg-red-500 px-6 py-2 font-semibold text-white shadow-lg"
-            >
-              Play Nope
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => dispatch({ type: "PASS_NOPE_WINDOW" })}
-            className="rounded-full bg-neutral-100 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
-          >
-            Pass Nope window
-          </button>
-        </div>
+        <NopeWindow
+          nopeStackSize={view.nopeStack.length}
+          hand={view.hand}
+          onPlayNope={(cardUid) => dispatch({ type: "PLAY_NOPE", player: view.you, cardUid })}
+          onWindowClosed={() => dispatch({ type: "PASS_NOPE_WINDOW" })}
+        />
       )}
 
       {view.phase === "DEFUSE_REINSERT" && view.currentPlayer === view.you && (
-        <div className="absolute inset-x-0 bottom-32 flex flex-wrap justify-center gap-2 px-4">
-          {Array.from({ length: view.deckSize + 1 }, (_, position) => (
-            <button
-              key={position}
-              type="button"
-              onClick={() => dispatch({ type: "DEFUSE_REINSERT", position })}
-              className="rounded-full bg-amber-500 px-3 py-1 text-sm font-semibold text-neutral-900 shadow"
-            >
-              {position === 0 ? "Top" : position === view.deckSize ? "Bottom" : `#${position}`}
-            </button>
-          ))}
-        </div>
+        <DefuseReinsert
+          deckSize={view.deckSize}
+          onConfirm={(position) => dispatch({ type: "DEFUSE_REINSERT", position })}
+        />
       )}
 
       {view.phase === "FAVOR_RESOLVE" &&
         view.pendingAction?.type === "FAVOR" &&
         view.pendingAction.target === view.you && (
-          <div className="absolute inset-x-0 bottom-32 flex flex-wrap justify-center gap-2 px-4">
-            {view.hand.map((card) => (
-              <button
-                key={card.uid}
-                type="button"
-                onClick={() => dispatch({ type: "RESOLVE_FAVOR", cardUid: card.uid })}
-              >
-                <CardFace card={card} />
-              </button>
-            ))}
-          </div>
+          <FavorPrompt
+            hand={view.hand}
+            onGive={(cardUid) => dispatch({ type: "RESOLVE_FAVOR", cardUid })}
+          />
         )}
+
+      {showSeeFuture && (
+        <SeeTheFuture
+          cards={seenFutureCards}
+          onDismiss={() => setDismissedSeeFutureAt(view.playHistory.length)}
+        />
+      )}
+
+      {pendingPlay?.kind === "target" && (
+        <TargetPicker
+          title="Choose a target"
+          view={view}
+          onSelect={(target) => {
+            dispatch(pendingPlay.toAction(pendingPlay.cardUid, target));
+            setPendingPlay(null);
+          }}
+          onCancel={() => setPendingPlay(null)}
+        />
+      )}
+
+      {pendingPlay?.kind === "pairTarget" && (
+        <TargetPicker
+          title="Steal a card from…"
+          view={view}
+          onSelect={(target) => {
+            dispatch({ type: "PLAY_PAIR", cardUids: pendingPlay.cardUids, target });
+            setPendingPlay(null);
+          }}
+          onCancel={() => setPendingPlay(null)}
+        />
+      )}
+
+      {pendingPlay?.kind === "tripleTarget" && (
+        <TargetPicker
+          title="Choose a target"
+          view={view}
+          onSelect={(target) =>
+            setPendingPlay({ kind: "tripleName", cardUids: pendingPlay.cardUids, target })
+          }
+          onCancel={() => setPendingPlay(null)}
+        />
+      )}
+
+      {pendingPlay?.kind === "tripleName" && (
+        <NamedCardPicker
+          onSelect={(namedCard) => {
+            dispatch({
+              type: "PLAY_TRIPLE",
+              cardUids: pendingPlay.cardUids,
+              target: pendingPlay.target,
+              namedCard,
+            });
+            setPendingPlay(null);
+          }}
+          onCancel={() => setPendingPlay(null)}
+        />
+      )}
+
+      {pendingPlay?.kind === "fiveDifferent" && (
+        <DiscardPicker
+          discard={view.discard}
+          onSelect={(discardUid) => {
+            dispatch({ type: "PLAY_FIVE_DIFFERENT", cardUids: pendingPlay.cardUids, discardUid });
+            setPendingPlay(null);
+          }}
+          onCancel={() => setPendingPlay(null)}
+        />
+      )}
+
+      {pendingPlay?.kind === "alterFuture" && (
+        <AlterTheFuture
+          cards={game.deck.slice(0, Math.min(3, game.deck.length))}
+          onConfirm={(order) => {
+            dispatch({ type: "PLAY_ALTER_FUTURE", cardUid: pendingPlay.cardUid, order });
+            setPendingPlay(null);
+          }}
+          onCancel={() => setPendingPlay(null)}
+        />
+      )}
 
       {lastError && (
         <p className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-red-300">

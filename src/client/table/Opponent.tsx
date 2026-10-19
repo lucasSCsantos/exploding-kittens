@@ -9,17 +9,31 @@ export interface OpponentProps {
   handSize: number;
   alive: boolean;
   isActiveTurn: boolean;
+  onClick?: () => void;
+  selectable?: boolean;
 }
 
-export function Opponent({ nickname, handSize, alive, isActiveTurn }: OpponentProps) {
+export function Opponent({
+  nickname,
+  handSize,
+  alive,
+  isActiveTurn,
+  onClick,
+  selectable = false,
+}: OpponentProps) {
   const backImage = getCardBackImage();
   const fanCount = Math.min(handSize, 8);
+  const Container = selectable ? "button" : "div";
 
   return (
-    <div
-      className={`flex flex-col items-center gap-1 rounded-xl p-2 ${
+    <Container
+      type={selectable ? "button" : undefined}
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 rounded-xl p-2 transition ${
         isActiveTurn ? "ring-4 ring-amber-400" : ""
-      } ${!alive ? "opacity-40 grayscale" : ""}`}
+      } ${selectable ? "cursor-pointer ring-2 ring-sky-400 hover:bg-white/10" : ""} ${
+        !alive ? "opacity-40 grayscale" : ""
+      }`}
     >
       <div
         className={`flex h-14 w-14 items-center justify-center rounded-full bg-neutral-700 text-lg font-bold text-white ${
@@ -46,6 +60,6 @@ export function Opponent({ nickname, handSize, alive, isActiveTurn }: OpponentPr
         })}
       </div>
       <span className="text-xs text-neutral-300">{handSize} cards</span>
-    </div>
+    </Container>
   );
 }
