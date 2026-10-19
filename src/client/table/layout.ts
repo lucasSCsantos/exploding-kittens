@@ -1,5 +1,7 @@
 // Pure geometry helpers for the table layout (ticket 10). No DOM, no React — easy to unit test.
 
+import type { Card } from "../../engine/types.js";
+
 export interface FanTransform {
   rotateDeg: number;
   translateX: number;
@@ -94,6 +96,23 @@ export function messyOffset(uid: string): MessyOffset {
     x: ((h >> 8) % 21) - 10,
     y: ((h >> 16) % 21) - 10,
   };
+}
+
+export interface DiscardStackEntry {
+  card: Card;
+  offset: MessyOffset;
+}
+
+const DISCARD_STACK_CAP = 15;
+
+/**
+ * The last (up to) 15 discarded cards, each paired with its messy offset, so the discard pile
+ * renders as a pile with visual bulk instead of a single floating top card. The full `discard`
+ * array (for the tap-to-view-history modal) is unaffected — this only caps what's rendered as
+ * the physical stack.
+ */
+export function discardPileStack(discard: Card[]): DiscardStackEntry[] {
+  return discard.slice(-DISCARD_STACK_CAP).map((card) => ({ card, offset: messyOffset(card.uid) }));
 }
 
 /** Number of stacked layers to render for the draw pile, thicker with more cards remaining. */

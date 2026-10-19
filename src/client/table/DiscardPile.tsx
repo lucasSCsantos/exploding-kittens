@@ -4,7 +4,7 @@
 import { forwardRef, useState } from "react";
 import type { Card } from "../../engine/types.js";
 import { CardFace } from "./CardFace.js";
-import { messyOffset } from "./layout.js";
+import { discardPileStack } from "./layout.js";
 
 export interface DiscardPileProps {
   discard: Card[];
@@ -15,7 +15,7 @@ export const DiscardPile = forwardRef<HTMLButtonElement, DiscardPileProps>(funct
   ref,
 ) {
   const [showHistory, setShowHistory] = useState(false);
-  const topCard = discard[discard.length - 1] ?? null;
+  const stack = discardPileStack(discard);
 
   return (
     <>
@@ -26,19 +26,17 @@ export const DiscardPile = forwardRef<HTMLButtonElement, DiscardPileProps>(funct
         className="relative flex h-36 w-24 items-center justify-center rounded-lg border-2 border-dashed border-white/20"
         aria-label="Discard pile"
       >
-        {topCard &&
-          (() => {
-            const offset = messyOffset(topCard.uid);
-            return (
-              <div
-                style={{
-                  transform: `rotate(${offset.rotateDeg}deg) translate(${offset.x}px, ${offset.y}px)`,
-                }}
-              >
-                <CardFace card={topCard} />
-              </div>
-            );
-          })()}
+        {stack.map(({ card, offset }) => (
+          <div
+            key={card.uid}
+            className="absolute"
+            style={{
+              transform: `rotate(${offset.rotateDeg}deg) translate(${offset.x}px, ${offset.y}px)`,
+            }}
+          >
+            <CardFace card={card} />
+          </div>
+        ))}
       </button>
 
       {showHistory && (

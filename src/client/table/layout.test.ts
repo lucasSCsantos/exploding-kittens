@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Card } from "../../engine/types.js";
 import {
+  discardPileStack,
   drawPileLayers,
   fanTransform,
   flightOffset,
@@ -91,6 +93,30 @@ describe("drawPileLayers", () => {
     expect(drawPileLayers(1)).toBe(1);
     expect(drawPileLayers(12)).toBe(2);
     expect(drawPileLayers(1000)).toBe(6);
+  });
+});
+
+describe("discardPileStack", () => {
+  const card = (uid: string): Card => ({ id: "NOPE", uid });
+
+  it("returns an entry with a messy offset for every card when under the cap", () => {
+    const discard = [card("a"), card("b"), card("c")];
+    const stack = discardPileStack(discard);
+
+    expect(stack.map((entry) => entry.card)).toEqual(discard);
+    expect(stack.map((entry) => entry.offset)).toEqual(discard.map((c) => messyOffset(c.uid)));
+  });
+
+  it("caps the stack at the last 15 cards, preserving order", () => {
+    const discard = Array.from({ length: 20 }, (_, i) => card(`card-${i}`));
+    const stack = discardPileStack(discard);
+
+    expect(stack).toHaveLength(15);
+    expect(stack.map((entry) => entry.card)).toEqual(discard.slice(5));
+  });
+
+  it("returns an empty stack for an empty discard pile", () => {
+    expect(discardPileStack([])).toEqual([]);
   });
 });
 
