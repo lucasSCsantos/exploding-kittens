@@ -5,6 +5,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { getCardBackImage } from "../cards.js";
 import { drawPileLayers } from "./layout.js";
+import { cardFlipSpring } from "./motion.js";
 
 export interface DrawPileProps {
   deckSize: number;
@@ -67,7 +68,7 @@ export function DrawPile({ deckSize, canDraw, onDraw }: DrawPileProps) {
                   initial={{ rotateY: 0 }}
                   animate={{ rotateY: 180 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: FLIP_DURATION_MS / 1000 }}
+                  transition={cardFlipSpring(FLIP_DURATION_MS / 1000)}
                   className="absolute inset-0 h-36 w-24 max-w-none select-none rounded-lg object-cover shadow-xl"
                 />
               )}

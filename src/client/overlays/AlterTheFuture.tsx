@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { Reorder } from "motion/react";
 import { CardFace } from "../table/CardFace.js";
+import { CARD_SPRING } from "../table/motion.js";
 import type { Card } from "../../engine/types.js";
 
 export interface AlterTheFutureProps {
@@ -26,7 +27,12 @@ export function AlterTheFuture({ cards, onConfirm, onCancel }: AlterTheFuturePro
         className="flex list-none gap-3"
       >
         {order.map((card) => (
-          <Reorder.Item key={card.uid} value={card} className="cursor-grab active:cursor-grabbing">
+          <Reorder.Item
+            key={card.uid}
+            value={card}
+            transition={CARD_SPRING}
+            className="cursor-grab active:cursor-grabbing"
+          >
             <CardFace card={card} />
           </Reorder.Item>
         ))}

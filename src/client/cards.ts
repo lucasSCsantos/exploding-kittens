@@ -4,6 +4,9 @@
 import type { Card, CardId } from "../engine/types.js";
 import type { PlayerView } from "../engine/view.js";
 
+// WebP siblings of these filenames are generated at build time by scripts/optimize-card-images.mjs
+// (ticket 17) — the .jpg files stay in explodding/ as the source art, but resolveImage() below
+// only ever resolves the .webp output, which is ~25-30% smaller on mobile networks.
 export const CARD_TYPE_TO_FILES: Record<CardId, string[]> = {
   EK: ["exploding_kitten.jpg", "exploding_kitten2.jpg", "exploding_kitten3.jpg"],
   DEF: ["defuse.jpg", "defuse2.jpg", "defuse3.jpg", "defuse4.jpg", "defuse5.jpg", "defuse6.jpg"],
@@ -51,7 +54,7 @@ export function cardLabel(cardId: CardId): string {
 
 const CARD_BACK_FILE = "back.jpg";
 
-const images = import.meta.glob("../../explodding/*.jpg", { eager: true }) as Record<
+const images = import.meta.glob("../../explodding/*.webp", { eager: true }) as Record<
   string,
   { default: string }
 >;
@@ -60,12 +63,40 @@ const imagesByFilename = new Map<string, string>(
   Object.entries(images).map(([path, mod]) => [path.split("/").pop()!, mod.default]),
 );
 
-function resolveImage(filename: string): string {
-  const url = imagesByFilename.get(filename);
+function resolveImage(jpgFilename: string): string {
+  const webpFilename = jpgFilename.replace(/\.jpg$/, ".webp");
+  const url = imagesByFilename.get(webpFilename);
   if (!url) {
-    throw new Error(`cards.ts: no image file found for "${filename}"`);
+    throw new Error(`cards.ts: no WebP image found for "${jpgFilename}" (run \`npm run optimize-images\`)`);
   }
   return url;
+}
+
+let preloadPromise: Promise<void> | null = null;
+
+/**
+ * Starts fetching every card image so none render blank mid-game (ticket 17). Fire-and-forget:
+ * callers don't need to await it, they just need to call it as early as possible (on lobby entry)
+ * so the browser cache is warm well before any card actually needs to be drawn. Safe to call
+ * repeatedly (e.g. re-entering the lobby after a reconnect) — the work only happens once.
+ */
+export function preloadCardImages(): Promise<void> {
+  if (preloadPromise) return preloadPromise;
+  if (typeof Image === "undefined") return Promise.resolve();
+
+  const urls = [...imagesByFilename.values()];
+  preloadPromise = Promise.all(
+    urls.map(
+      (url) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+          img.src = url;
+        }),
+    ),
+  ).then(() => undefined);
+  return preloadPromise;
 }
 
 /** uid -> stable index into that card's CARD_TYPE_TO_FILES list, for the lifetime of the module. */

@@ -2,11 +2,19 @@
 // room code to share, everyone seated around a virtual table (project description §6), the
 // host's rule-variant settings (ticket 14), and — for the host only — the Start button.
 
+import { useEffect } from "react";
 import type { LobbyConfig } from "../../engine/setup.js";
+import { preloadCardImages } from "../cards.js";
 import { lobbySeatPositions } from "./layout.js";
 import { useGameStore } from "./gameStore.js";
 
 export function Lobby() {
+  // Start warming the browser's image cache the moment the lobby mounts, so every card has
+  // already loaded by the time the game starts and nobody sees a blank card mid-game (ticket 17).
+  useEffect(() => {
+    preloadCardImages();
+  }, []);
+
   const code = useGameStore((s) => s.code);
   const playerId = useGameStore((s) => s.playerId);
   const hostId = useGameStore((s) => s.hostId);

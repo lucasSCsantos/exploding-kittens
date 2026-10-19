@@ -7,6 +7,7 @@ import { motion, type PanInfo } from "motion/react";
 import type { Card, CardId } from "../../engine/types.js";
 import { CardFace } from "./CardFace.js";
 import { fanTransform } from "./layout.js";
+import { CARD_SPRING } from "./motion.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
 
 export interface HandProps {
@@ -128,6 +129,7 @@ export function Hand({
                 y: isSelected ? translateY - 22 : translateY,
                 zIndex: isSelected ? 20 : index,
               }}
+              transition={CARD_SPRING}
               className="absolute cursor-grab touch-none active:cursor-grabbing"
               style={{ transformOrigin: "bottom center" }}
             >

@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"tsx watch src/server/index.ts\"",
+    "optimize-images": "node scripts/optimize-card-images.mjs",
+    "prebuild": "npm run optimize-images",
     "build": "vite build && tsc -p tsconfig.server.json",
     "start": "node dist/server/index.js",
     "test": "vitest"
@@ -32,6 +34,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "concurrently": "^10.0.6",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
