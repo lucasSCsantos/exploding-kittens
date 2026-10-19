@@ -26,6 +26,27 @@ export function fanTransform(index: number, count: number): FanTransform {
   };
 }
 
+/** Horizontal gap (px) between staged cards in the row above the hand. */
+const STAGING_CARD_GAP = 56;
+
+/** How far above the fanned hand the staging row sits (px; negative moves it up). */
+const STAGING_ROW_OFFSET_Y = -130;
+
+/**
+ * Position of staged card `index` of `count` in the row above the hand, ordered by selection
+ * order (the order the player tapped the cards), not hand order. Returns the same `FanTransform`
+ * shape as `fanTransform` so both can feed the same `animate` props — but lays cards out flat in
+ * a row, evenly spaced, instead of a fan.
+ */
+export function stagingRowPosition(index: number, count: number): FanTransform {
+  const mid = (count - 1) / 2;
+  return {
+    rotateDeg: 0,
+    translateX: (index - mid) * STAGING_CARD_GAP,
+    translateY: STAGING_ROW_OFFSET_Y,
+  };
+}
+
 export interface SeatPosition {
   seat: number;
   xPercent: number;

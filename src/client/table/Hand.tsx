@@ -1,13 +1,15 @@
 // The active seat's hand: fanned arc, hover/touch lift, drag-to-play onto discard,
 // tap-to-select + Play button fallback, sideways reorder (ticket 10), combo multi-select —
 // tapping several cards lifts them together, then Play routes by selection size (ticket 11) —
-// and an amber ring/glow + "Your turn" label while it's this player's turn (ticket 21).
+// an amber ring/glow + "Your turn" label while it's this player's turn (ticket 21), and selected
+// cards staging into their own row above the hand, in selection order, while the rest of the
+// hand re-fans to fill the gap (ticket 24).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, type PanInfo } from "motion/react";
 import type { Card, CardId } from "../../engine/types.js";
 import { CardFace } from "./CardFace.js";
-import { fanTransform } from "./layout.js";
+import { fanTransform, stagingRowPosition } from "./layout.js";
 import { CARD_SPRING } from "./motion.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
 import { ACTIVE_TURN_GLOW, ACTIVE_TURN_RING } from "./turnHighlight.js";
@@ -95,6 +97,9 @@ export function Hand({
     );
   }
 
+  const unselectedHand = orderedHand.filter((c) => !selectedUids.includes(c.uid));
+  const unselectedIndex = new Map(unselectedHand.map((c, i) => [c.uid, i]));
+
   const selectedCards = orderedHand.filter((c) => selectedUids.includes(c.uid));
   const selectionShape = classifySelectionShape(selectedCards);
   const canPlaySelection =
@@ -110,9 +115,14 @@ export function Hand({
     >
       {canPlay && <span className="text-sm font-semibold text-amber-300">Your turn</span>}
       <div className="relative flex h-44 items-end justify-center" style={{ perspective: 800 }}>
-        {orderedHand.map((card, index) => {
-          const { rotateDeg, translateX, translateY } = fanTransform(index, orderedHand.length);
+        {orderedHand.map((card) => {
           const isSelected = selectedUids.includes(card.uid);
+          const selectionIndex = selectedUids.indexOf(card.uid);
+          const handIndex = unselectedIndex.get(card.uid)!;
+          const { rotateDeg, translateX, translateY } = isSelected
+            ? stagingRowPosition(selectionIndex, selectedUids.length)
+            : fanTransform(handIndex, unselectedHand.length);
+          const zIndex = isSelected ? 20 + selectionIndex : handIndex;
 
           return (
             <motion.div
@@ -128,13 +138,13 @@ export function Hand({
               dragMomentum={false}
               onDragEnd={(_e, info) => handleDragEnd(card, info)}
               onTap={() => handleTap(card)}
-              whileHover={{ y: -22, zIndex: 20 }}
+              whileHover={isSelected ? undefined : { y: -22, zIndex: 20 }}
               whileTap={{ scale: 1.05 }}
               animate={{
                 rotate: rotateDeg,
                 x: translateX,
-                y: isSelected ? translateY - 22 : translateY,
-                zIndex: isSelected ? 20 : index,
+                y: translateY,
+                zIndex,
               }}
               transition={CARD_SPRING}
               className="absolute cursor-grab touch-none active:cursor-grabbing"

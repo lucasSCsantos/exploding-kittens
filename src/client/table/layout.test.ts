@@ -9,6 +9,7 @@ import {
   lobbySeatPositions,
   messyOffset,
   opponentSeatPositions,
+  stagingRowPosition,
 } from "./layout.js";
 
 describe("fanTransform", () => {
@@ -31,6 +32,29 @@ describe("fanTransform", () => {
     const first = fanTransform(0, 20);
     const last = fanTransform(19, 20);
     expect(last.rotateDeg - first.rotateDeg).toBeLessThanOrEqual(54);
+  });
+});
+
+describe("stagingRowPosition", () => {
+  it("centers a single staged card directly above the hand with no rotation", () => {
+    expect(stagingRowPosition(0, 1)).toEqual({ rotateDeg: 0, translateX: 0, translateY: -130 });
+  });
+
+  it("lays cards out left-to-right by selection order, evenly spaced and unrotated", () => {
+    const first = stagingRowPosition(0, 3);
+    const second = stagingRowPosition(1, 3);
+    const third = stagingRowPosition(2, 3);
+
+    expect(second).toEqual({ rotateDeg: 0, translateX: 0, translateY: -130 });
+    expect(first.translateX).toBeLessThan(second.translateX);
+    expect(second.translateX).toBeLessThan(third.translateX);
+    expect(first.translateX).toBe(-third.translateX);
+    expect(first.rotateDeg).toBe(0);
+    expect(third.rotateDeg).toBe(0);
+  });
+
+  it("sits above the fanned hand regardless of count", () => {
+    expect(stagingRowPosition(0, 5).translateY).toBeLessThan(0);
   });
 });
 
