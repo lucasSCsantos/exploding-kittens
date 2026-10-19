@@ -5,7 +5,7 @@
 
 import { playSound } from "../sound.js";
 import { vibrate } from "../haptics.js";
-import type { Card } from "../../engine/types.js";
+import type { Card, NopeableEffect, PlayHistoryEntry } from "../../engine/types.js";
 import type { ServerView } from "./gameStore.js";
 import { useGameStore } from "./gameStore.js";
 
@@ -45,6 +45,12 @@ export interface CardTransfer {
   toSeat: number;
 }
 
+type HandOffEntry = PlayHistoryEntry & { effect: Extract<NopeableEffect, { kind: "PAIR" | "TRIPLE" }> };
+
+function isHandOffEntry(entry: PlayHistoryEntry): entry is HandOffEntry {
+  return !entry.noped && (entry.effect.kind === "PAIR" || entry.effect.kind === "TRIPLE");
+}
+
 /** Detects a Favor/Pair/Triple hand-to-hand transfer in this diff. Pair/Triple log their transfer
  * as a playHistory entry at the moment the card actually moves, but Favor's playHistory entry logs
  * the request opening (before the giver even chooses a card) — the real hand-off only happens when
@@ -52,11 +58,16 @@ export interface CardTransfer {
 export function detectCardTransfer(prev: ServerView, next: ServerView): CardTransfer | null {
   if (next.playHistory.length > prev.playHistory.length) {
     const newEntries = next.playHistory.slice(prev.playHistory.length);
-    const transfer = newEntries.find(
-      (entry) => !entry.noped && (entry.effect.kind === "PAIR" || entry.effect.kind === "TRIPLE"),
-    );
-    if (transfer && (transfer.effect.kind === "PAIR" || transfer.effect.kind === "TRIPLE")) {
-      return { fromSeat: transfer.effect.target, toSeat: transfer.player };
+    const transfer = newEntries.find(isHandOffEntry);
+    if (transfer) {
+      const fromSeat = transfer.effect.target;
+      // A Pair/Triple whose target had nothing to give still logs a non-noped playHistory entry
+      // (it's pushed before the engine checks whether a card was actually available), so confirm
+      // the giver's hand really shrank before reporting a transfer.
+      const giverHandShrank = next.players[fromSeat]!.handSize < prev.players[fromSeat]!.handSize;
+      if (giverHandShrank) {
+        return { fromSeat, toSeat: transfer.player };
+      }
     }
   }
 

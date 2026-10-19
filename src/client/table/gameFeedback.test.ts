@@ -239,7 +239,13 @@ describe("detectCardTransfer", () => {
   it("detects a Pair steal from the resolved playHistory entry", () => {
     const transfer = detectCardTransfer(
       baseView({ playHistory: [] }),
-      baseView({ playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: false }] }),
+      baseView({
+        playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: false }],
+        players: [
+          { id: "Alice", alive: true, handSize: 8 },
+          { id: "Bob", alive: true, handSize: 6 },
+        ],
+      }),
     );
     expect(transfer).toEqual({ fromSeat: 1, toSeat: 0 });
   });
@@ -249,11 +255,30 @@ describe("detectCardTransfer", () => {
       baseView({ playHistory: [] }),
       baseView({
         playHistory: [
-          { player: 2, effect: { kind: "TRIPLE", target: 0, namedCard: "SKIP" }, noped: false },
+          { player: 1, effect: { kind: "TRIPLE", target: 0, namedCard: "SKIP" }, noped: false },
+        ],
+        players: [
+          { id: "Alice", alive: true, handSize: 6 },
+          { id: "Bob", alive: true, handSize: 8 },
         ],
       }),
     );
-    expect(transfer).toEqual({ fromSeat: 0, toSeat: 2 });
+    expect(transfer).toEqual({ fromSeat: 0, toSeat: 1 });
+  });
+
+  it("ignores a fizzled Pair/Triple where no card actually changed hands (target had nothing to give)", () => {
+    // handlePassNopeWindow logs the playHistory entry before resolveNopeableEffect runs, so a
+    // Pair/Triple that bails out early (empty hand / named card absent) still produces a
+    // non-noped playHistory entry — detectCardTransfer must not be fooled by it.
+    const emptyHandedBob = { id: "Bob", alive: true, handSize: 0 };
+    const transfer = detectCardTransfer(
+      baseView({ playHistory: [], players: [{ id: "Alice", alive: true, handSize: 7 }, emptyHandedBob] }),
+      baseView({
+        playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: false }],
+        players: [{ id: "Alice", alive: true, handSize: 7 }, emptyHandedBob],
+      }),
+    );
+    expect(transfer).toBeNull();
   });
 
   it("ignores a noped Pair/Triple", () => {
