@@ -16,6 +16,9 @@ import { classifySelectionShape, classifySinglePlay } from "./selection.js";
 export interface HandProps {
   hand: Card[];
   canPlay: boolean;
+  /** How many turns in a row this player owes (stacked Attacks) — 1 in the common case. Shown
+   * next to the "Sua vez" label as a "Nx" badge whenever it's more than 1. */
+  turnsRemaining: number;
   /** Whether a single card can be dragged straight onto the discard pile for an instant play. */
   isSimplePlayable: (cardId: CardId) => boolean;
   onSimplePlay: (card: Card) => void;
@@ -30,6 +33,7 @@ const PLAY_DRAG_THRESHOLD = -70;
 export function Hand({
   hand,
   canPlay,
+  turnsRemaining,
   isSimplePlayable,
   onSimplePlay,
   onPlaySelection,
@@ -108,8 +112,20 @@ export function Hand({
 
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl p-2">
-      {canPlay && <span className="text-sm font-semibold text-amber-300">Sua vez</span>}
-      <div className="relative flex h-60 items-end justify-center" style={{ perspective: 800 }}>
+      {canPlay && (
+        <span className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-amber-300">Sua vez</span>
+          {turnsRemaining > 1 && (
+            <span
+              className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white shadow"
+              title={`Você deve jogar ${turnsRemaining} turnos seguidos (ataques acumulados)`}
+            >
+              {turnsRemaining}x
+            </span>
+          )}
+        </span>
+      )}
+      <div className="relative flex h-80 items-end justify-center" style={{ perspective: 800 }}>
         {orderedHand.map((card) => {
           const isSelected = selectedUids.includes(card.uid);
           const selectionIndex = selectedUids.indexOf(card.uid);

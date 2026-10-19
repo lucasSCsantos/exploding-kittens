@@ -26,7 +26,7 @@ export function NamedCardPicker({ onSelect, onCancel }: NamedCardPickerProps) {
               src={getCardImage(cardId, `preview-${cardId}`)}
               alt={cardLabel(cardId)}
               draggable={false}
-              className="h-28 w-20 max-w-none select-none rounded object-cover shadow"
+              className="h-32 w-24 max-w-none select-none rounded object-cover shadow"
             />
             <span className="text-xs text-white">{cardLabel(cardId)}</span>
           </button>

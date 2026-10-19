@@ -14,8 +14,8 @@ export interface CardFaceProps {
 }
 
 const SIZE_CLASSES: Record<"normal" | "large", string> = {
-  normal: "h-48 w-32",
-  large: "h-64 w-44",
+  normal: "h-60 w-40",
+  large: "h-80 w-56",
 };
 
 /** The "normal" card footprint as bare Tailwind classes, for the handful of places (deck/discard

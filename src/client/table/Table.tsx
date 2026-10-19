@@ -240,6 +240,7 @@ export function Table() {
         <Hand
           hand={handForDisplay}
           canPlay={isYourTurn}
+          turnsRemaining={view.turnsRemaining}
           isSimplePlayable={(cardId: CardId) => classifySinglePlay(cardId).kind === "simple"}
           onSimplePlay={(card) => {
             const play = classifySinglePlay(card.id);
