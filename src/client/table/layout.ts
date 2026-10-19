@@ -30,7 +30,7 @@ export function fanTransform(index: number, count: number): FanTransform {
 const STAGING_CARD_GAP = 56;
 
 /** How far above the fanned hand the staging row sits (px; negative moves it up). */
-const STAGING_ROW_OFFSET_Y = -130;
+const STAGING_ROW_OFFSET_Y = -155;
 
 /**
  * Position of staged card `index` of `count` in the row above the hand, ordered by selection

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ServerView } from "./gameStore.js";
 import type { SoundName } from "../sound.js";
+import type { Card } from "../../engine/types.js";
 
 type Handler = (...args: unknown[]) => void;
 
@@ -504,5 +505,23 @@ describe("diffViewForFeedback transfer tracking (ticket 27)", () => {
       baseView({ playHistory: [{ player: 0, effect: { kind: "SKIP" }, noped: false }] }),
     );
     expect(useGameStore.getState().lastTransfer).toBeNull();
+  });
+});
+
+describe("gameFeedback's useGameStore.subscribe wiring", () => {
+  // diffViewForFeedback is called directly above, but that bypasses the module-level
+  // `useGameStore.subscribe` at the bottom of gameFeedback.ts — the actual seam the socket
+  // handler drives via `useGameStore.setState({ view })`. That subscriber used to advance
+  // `previousView` *after* diffing, so a setState triggered from inside diffViewForFeedback
+  // (e.g. recording lastDraw) re-entered the subscriber with a still-stale previousView,
+  // re-diffed the same pair, and recursed until the stack overflowed — on every single draw,
+  // since that's the most common action in the game.
+  it("does not stack-overflow when a draw's lastDraw setState re-enters the subscriber", () => {
+    useGameStore.setState({ view: baseView({ deckSize: 20, hand: [] }) });
+    expect(() =>
+      useGameStore.setState({
+        view: baseView({ deckSize: 19, hand: [{ id: "SHUFFLE", uid: "c1" } as unknown as Card] }),
+      }),
+    ).not.toThrow();
   });
 });

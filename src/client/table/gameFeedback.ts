@@ -187,7 +187,14 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
 let previousView: ServerView | null = useGameStore.getState().view;
 useGameStore.subscribe((state) => {
   if (state.view && state.view !== previousView) {
-    diffViewForFeedback(previousView, state.view);
+    // Advance previousView *before* diffing: diffViewForFeedback calls setState (lastDraw/
+    // lastElimination/lastTransfer), which re-enters this subscriber synchronously. If
+    // previousView were still stale at that point, the re-entrant call would see the same
+    // state.view !== previousView diff again and recurse forever (stack overflow on every draw).
+    const prev = previousView;
+    previousView = state.view;
+    diffViewForFeedback(prev, state.view);
+  } else {
+    previousView = state.view;
   }
-  previousView = state.view;
 });

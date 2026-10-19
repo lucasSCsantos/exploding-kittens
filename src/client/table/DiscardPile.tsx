@@ -31,7 +31,14 @@ export const DiscardPile = forwardRef<HTMLButtonElement, DiscardPileProps>(funct
             key={card.uid}
             className="absolute"
             style={{
-              transform: `rotate(${offset.rotateDeg}deg) translate(${offset.x}px, ${offset.y}px)`,
+              // Translate first, rotate last: CSS composes functions right-to-left, so listing
+              // translate first keeps the jitter in the page's fixed coordinate frame and rotates
+              // each card in place around its own (now-jittered) center afterward. The previous
+              // "rotate then translate" order instead applied the jitter inside each card's own
+              // rotated local frame, so the translate direction got silently re-rotated by that
+              // card's own random tilt — every card's center ended up displaced along a different
+              // axis instead of sharing one consistent anchor point.
+              transform: `translate(${offset.x}px, ${offset.y}px) rotate(${offset.rotateDeg}deg)`,
             }}
           >
             <CardFace card={card} />
