@@ -186,10 +186,15 @@ export function Table() {
         />
       )}
 
-      {view.phase === "DEFUSE_REINSERT" && view.currentPlayer === view.you && (
+      {view.phase === "DEFUSE_REINSERT" && view.pendingAction?.type === "DEFUSE_REINSERT" && (
         <DefuseReinsert
+          kitten={view.pendingAction.kitten}
           deckSize={view.deckSize}
-          onConfirm={(position) => dispatch({ type: "DEFUSE_REINSERT", position })}
+          onConfirm={
+            view.currentPlayer === view.you
+              ? (position) => dispatch({ type: "DEFUSE_REINSERT", position })
+              : undefined
+          }
         />
       )}
 

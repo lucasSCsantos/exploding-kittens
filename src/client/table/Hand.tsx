@@ -1,6 +1,7 @@
 // The active seat's hand: fanned arc, hover/touch lift, drag-to-play onto discard,
-// tap-to-select + Play button fallback, sideways reorder (ticket 10), and combo multi-select —
-// tapping several cards lifts them together, then Play routes by selection size (ticket 11).
+// tap-to-select + Play button fallback, sideways reorder (ticket 10), combo multi-select —
+// tapping several cards lifts them together, then Play routes by selection size (ticket 11) —
+// and an amber ring/glow + "Your turn" label while it's this player's turn (ticket 21).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, type PanInfo } from "motion/react";
@@ -9,6 +10,7 @@ import { CardFace } from "./CardFace.js";
 import { fanTransform } from "./layout.js";
 import { CARD_SPRING } from "./motion.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
+import { ACTIVE_TURN_GLOW, ACTIVE_TURN_RING } from "./turnHighlight.js";
 
 export interface HandProps {
   hand: Card[];
@@ -101,7 +103,12 @@ export function Hand({
       : selectionShape.size === 2 || selectionShape.size === 3 || selectionShape.size === 5;
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div
+      className={`flex flex-col items-center gap-3 rounded-xl p-2 transition ${
+        canPlay ? `${ACTIVE_TURN_GLOW} ${ACTIVE_TURN_RING}` : ""
+      }`}
+    >
+      {canPlay && <span className="text-sm font-semibold text-amber-300">Your turn</span>}
       <div className="relative flex h-44 items-end justify-center" style={{ perspective: 800 }}>
         {orderedHand.map((card, index) => {
           const { rotateDeg, translateX, translateY } = fanTransform(index, orderedHand.length);

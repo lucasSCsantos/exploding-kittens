@@ -3,6 +3,7 @@
 
 import { getCardBackImage } from "../cards.js";
 import { fanTransform } from "./layout.js";
+import { ACTIVE_TURN_GLOW, ACTIVE_TURN_RING } from "./turnHighlight.js";
 
 export interface OpponentProps {
   nickname: string;
@@ -30,14 +31,14 @@ export function Opponent({
       type={selectable ? "button" : undefined}
       onClick={onClick}
       className={`flex flex-col items-center gap-1 rounded-xl p-2 transition ${
-        isActiveTurn ? "ring-4 ring-amber-400" : ""
+        isActiveTurn ? ACTIVE_TURN_RING : ""
       } ${selectable ? "cursor-pointer ring-2 ring-sky-400 hover:bg-white/10" : ""} ${
         !alive ? "opacity-40 grayscale" : ""
       }`}
     >
       <div
         className={`flex h-14 w-14 items-center justify-center rounded-full bg-neutral-700 text-lg font-bold text-white ${
-          isActiveTurn ? "shadow-[0_0_14px_4px_rgba(251,191,36,0.6)]" : ""
+          isActiveTurn ? ACTIVE_TURN_GLOW : ""
         }`}
       >
         {nickname.slice(0, 2).toUpperCase()}
