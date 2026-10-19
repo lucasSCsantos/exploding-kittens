@@ -29,27 +29,53 @@ export const CARD_TYPE_TO_FILES: Record<CardId, string[]> = {
 
 /** Human-readable names for the event log (ticket 16) and anywhere else a card needs prose. */
 export const CARD_LABELS: Record<CardId, string> = {
-  EK: "Exploding Kitten",
-  DEF: "Defuse",
-  NOPE: "Nope",
-  ATK: "Attack",
-  TATK: "Targeted Attack",
-  SKIP: "Skip",
+  EK: "Gatinho Explosivo",
+  DEF: "Desarme",
+  NOPE: "Não!",
+  ATK: "Ataque",
+  TATK: "Ataque Direcionado",
+  SKIP: "Pular",
   FAV: "Favor",
-  SHUF: "Shuffle",
-  STF: "See the Future",
-  ATF: "Alter the Future",
-  DFB: "Draw from the Bottom",
-  CAT_TACOCAT: "Tacocat",
-  CAT_HAIRYPOTATO: "Hairy Potato Cat",
-  CAT_RAINBOW: "Rainbow Ralphing Cat",
-  CAT_BEARD: "Beard Cat",
-  CAT_CATTERMELON: "Cattermelon",
-  FERAL: "Feral Cat",
+  SHUF: "Embaralhar",
+  STF: "Ver o Futuro",
+  ATF: "Alterar o Futuro",
+  DFB: "Comprar do Fundo",
+  CAT_TACOCAT: "Tacogato",
+  CAT_HAIRYPOTATO: "Gato-Batata Peludo",
+  CAT_RAINBOW: "Gato Arco-íris",
+  CAT_BEARD: "Gato Barbudo",
+  CAT_CATTERMELON: "Gatomelancia",
+  FERAL: "Gato Selvagem",
 };
 
 export function cardLabel(cardId: CardId): string {
   return CARD_LABELS[cardId];
+}
+
+/** Hover-tooltip rules text for each card (what it does when you play it), in Portuguese. Cat
+ * cards have no solo effect — their blurb explains the pair/triple combo instead of a play. */
+export const CARD_DESCRIPTIONS: Record<CardId, string> = {
+  EK: "Se você comprar esta carta, explode e é eliminado — a menos que jogue um Desarme antes.",
+  DEF: "Neutralize um Gatinho Explosivo que você comprou e o esconda de volta no baralho.",
+  NOPE: "Cancela a última carta jogada por outro jogador (exceto um Desarme ou um Gatinho Explosivo).",
+  ATK: "Encerra seu turno sem comprar e obriga o próximo jogador a jogar dois turnos seguidos.",
+  TATK: "Como o Ataque, mas você escolhe quem vai jogar os dois turnos seguidos.",
+  SKIP: "Encerra seu turno imediatamente, sem precisar comprar uma carta.",
+  FAV: "Escolha um jogador para lhe dar uma carta da mão dele.",
+  SHUF: "Embaralha o baralho de compra.",
+  STF: "Veja as 3 cartas do topo do baralho, sem revelá-las aos outros.",
+  ATF: "Veja e reorganize as 3 cartas do topo do baralho como quiser.",
+  DFB: "Compra a carta do fundo do baralho, em vez do topo.",
+  CAT_TACOCAT: "Carta de Gato: sem efeito sozinha. Jogue um par para roubar uma carta aleatória de alguém, ou um trio para pedir uma carta específica.",
+  CAT_HAIRYPOTATO: "Carta de Gato: sem efeito sozinha. Jogue um par para roubar uma carta aleatória de alguém, ou um trio para pedir uma carta específica.",
+  CAT_RAINBOW: "Carta de Gato: sem efeito sozinha. Jogue um par para roubar uma carta aleatória de alguém, ou um trio para pedir uma carta específica.",
+  CAT_BEARD: "Carta de Gato: sem efeito sozinha. Jogue um par para roubar uma carta aleatória de alguém, ou um trio para pedir uma carta específica.",
+  CAT_CATTERMELON: "Carta de Gato: sem efeito sozinha. Jogue um par para roubar uma carta aleatória de alguém, ou um trio para pedir uma carta específica.",
+  FERAL: "Sem efeito sozinho. Pode entrar em qualquer par com um gato de verdade; dois Gatos Selvagens juntos só formam par se a mesa permitir.",
+};
+
+export function cardDescription(cardId: CardId): string {
+  return CARD_DESCRIPTIONS[cardId];
 }
 
 const CARD_BACK_FILE = "back.jpg";

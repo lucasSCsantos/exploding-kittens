@@ -5,6 +5,7 @@
 import { useEffect } from "react";
 import type { LobbyConfig } from "../../engine/setup.js";
 import { preloadCardImages } from "../cards.js";
+import { ErrorToast } from "./ErrorToast.js";
 import { lobbySeatPositions } from "./layout.js";
 import { useGameStore } from "./gameStore.js";
 
@@ -22,7 +23,6 @@ export function Lobby() {
   const config = useGameStore((s) => s.config);
   const updateConfig = useGameStore((s) => s.updateConfig);
   const startGame = useGameStore((s) => s.startGame);
-  const lastError = useGameStore((s) => s.lastError);
 
   const isHost = playerId !== null && playerId === hostId;
   const seats = lobbySeatPositions(lobbyPlayers.length);
@@ -30,7 +30,7 @@ export function Lobby() {
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-6 overflow-y-auto bg-neutral-900 p-4 text-white">
       <div className="flex flex-col items-center gap-2">
-        <h1 className="text-xl text-neutral-300">Room code</h1>
+        <h1 className="text-xl text-neutral-300">Código da sala</h1>
         <p className="text-5xl font-bold tracking-[0.3em] text-amber-400">{code}</p>
       </div>
 
@@ -68,13 +68,13 @@ export function Lobby() {
           disabled={lobbyPlayers.length < 2}
           className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 disabled:opacity-50"
         >
-          Start game
+          Começar jogo
         </button>
       ) : (
-        <p className="text-sm text-neutral-400">Waiting for the host to start the game…</p>
+        <p className="text-sm text-neutral-400">Aguardando o anfitrião começar o jogo…</p>
       )}
 
-      {lastError && <p className="text-sm text-red-400">{lastError}</p>}
+      <ErrorToast />
     </div>
   );
 }
@@ -91,10 +91,10 @@ function RoomSettings({ config, editable, onChange }: RoomSettingsProps) {
 
   return (
     <fieldset className="flex w-full max-w-80 flex-col gap-3 rounded-lg bg-neutral-800 p-4 text-sm">
-      <legend className="px-1 text-neutral-300">Room settings</legend>
+      <legend className="px-1 text-neutral-300">Configurações da sala</legend>
 
       <label className="flex items-center justify-between gap-2">
-        <span>Attack stacking</span>
+        <span>Empilhar ataques</span>
         <input
           type="checkbox"
           checked={config.attackStacking}
@@ -104,7 +104,7 @@ function RoomSettings({ config, editable, onChange }: RoomSettingsProps) {
       </label>
 
       <label className="flex items-center justify-between gap-2">
-        <span>Combo scope</span>
+        <span>Escopo das combinações</span>
         <select
           value={config.comboScope}
           disabled={!editable}
@@ -113,13 +113,13 @@ function RoomSettings({ config, editable, onChange }: RoomSettingsProps) {
           }
           className="rounded bg-neutral-700 px-2 py-1 text-white disabled:opacity-60"
         >
-          <option value="cats-only">Cats only</option>
-          <option value="any-matching">Any matching card</option>
+          <option value="cats-only">Somente gatos</option>
+          <option value="any-matching">Qualquer carta igual</option>
         </select>
       </label>
 
       <label className="flex items-center justify-between gap-2">
-        <span>Feral pairs</span>
+        <span>Pares com Feral</span>
         <select
           value={config.feralPairRule}
           disabled={!editable}
@@ -128,13 +128,13 @@ function RoomSettings({ config, editable, onChange }: RoomSettingsProps) {
           }
           className="rounded bg-neutral-700 px-2 py-1 text-white disabled:opacity-60"
         >
-          <option value="requires-real-cat">Needs a real cat</option>
-          <option value="allowed">Two Ferals allowed</option>
+          <option value="requires-real-cat">Precisa de um gato real</option>
+          <option value="allowed">Dois Ferais permitidos</option>
         </select>
       </label>
 
       <label className="flex items-center justify-between gap-2">
-        <span>Extra defuses</span>
+        <span>Desarmes extras</span>
         <span className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -142,7 +142,7 @@ function RoomSettings({ config, editable, onChange }: RoomSettingsProps) {
             disabled={!editable}
             onChange={(e) => onChange({ extraDefuses: e.target.checked ? "default" : 0 })}
           />
-          default
+          padrão
           <input
             type="number"
             min={0}

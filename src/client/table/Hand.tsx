@@ -108,8 +108,8 @@ export function Hand({
 
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl p-2">
-      {canPlay && <span className="text-sm font-semibold text-amber-300">Your turn</span>}
-      <div className="relative flex h-44 items-end justify-center" style={{ perspective: 800 }}>
+      {canPlay && <span className="text-sm font-semibold text-amber-300">Sua vez</span>}
+      <div className="relative flex h-60 items-end justify-center" style={{ perspective: 800 }}>
         {orderedHand.map((card) => {
           const isSelected = selectedUids.includes(card.uid);
           const selectionIndex = selectedUids.indexOf(card.uid);
@@ -161,7 +161,7 @@ export function Hand({
           }}
           className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 shadow-lg disabled:cursor-not-allowed disabled:bg-neutral-600 disabled:text-neutral-400"
         >
-          {selectedCards.length === 1 ? "Play" : `Play ${selectedCards.length} cards`}
+          {selectedCards.length === 1 ? "Jogar" : `Jogar ${selectedCards.length} cartas`}
         </button>
       )}
     </div>

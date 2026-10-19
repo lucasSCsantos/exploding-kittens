@@ -5,7 +5,7 @@
 import { motion } from "motion/react";
 import type { Card } from "../../engine/types.js";
 import { getCardBackImage } from "../cards.js";
-import { CardFace } from "./CardFace.js";
+import { CardFace, NORMAL_CARD_SIZE_CLASS } from "./CardFace.js";
 import { flightOffset, type Rect } from "./layout.js";
 import { CARD_FLIGHT_SPRING } from "./motion.js";
 
@@ -39,7 +39,7 @@ export function CardTransferFlight({ fromRect, toRect, card, onDone }: CardTrans
           src={getCardBackImage()}
           alt=""
           draggable={false}
-          className="h-36 w-24 max-w-none select-none rounded-lg object-cover shadow-md"
+          className={`${NORMAL_CARD_SIZE_CLASS} max-w-none select-none rounded-lg object-cover shadow-md`}
         />
       )}
     </motion.div>

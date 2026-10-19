@@ -11,7 +11,7 @@ export interface FavorPromptProps {
 export function FavorPrompt({ hand, onGive }: FavorPromptProps) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/80 p-4">
-      <h2 className="text-xl font-semibold text-white">Choose a card to give</h2>
+      <h2 className="text-xl font-semibold text-white">Escolha uma carta para dar</h2>
       <div className="flex max-w-4xl flex-wrap justify-center gap-3">
         {hand.map((card) => (
           <button

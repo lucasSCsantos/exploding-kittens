@@ -2,6 +2,7 @@
 // (ticket 12). Replaces the Phase-2 hot-seat name list.
 
 import { useState } from "react";
+import { ErrorToast } from "./ErrorToast.js";
 import { useGameStore } from "./gameStore.js";
 
 export function NewGameForm() {
@@ -10,7 +11,6 @@ export function NewGameForm() {
   const [code, setCode] = useState("");
   const createRoom = useGameStore((s) => s.createRoom);
   const joinRoom = useGameStore((s) => s.joinRoom);
-  const lastError = useGameStore((s) => s.lastError);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,19 +39,19 @@ export function NewGameForm() {
           onClick={() => setMode("create")}
           className={`rounded-full px-4 py-1 ${mode === "create" ? "bg-amber-500 text-neutral-900" : "text-white/70"}`}
         >
-          Create room
+          Criar sala
         </button>
         <button
           type="button"
           onClick={() => setMode("join")}
           className={`rounded-full px-4 py-1 ${mode === "join" ? "bg-amber-500 text-neutral-900" : "text-white/70"}`}
         >
-          Join room
+          Entrar em sala
         </button>
       </div>
 
       <label className="flex flex-col gap-1 text-sm text-neutral-300">
-        Your name
+        Seu nome
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -61,7 +61,7 @@ export function NewGameForm() {
 
       {mode === "join" && (
         <label className="flex flex-col gap-1 text-sm text-neutral-300">
-          Room code
+          Código da sala
           <input
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
@@ -75,10 +75,10 @@ export function NewGameForm() {
         type="submit"
         className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900"
       >
-        {mode === "create" ? "Create room" : "Join room"}
+        {mode === "create" ? "Criar sala" : "Entrar em sala"}
       </button>
 
-      {lastError && <p className="text-sm text-red-400">{lastError}</p>}
+      <ErrorToast />
     </form>
   );
 }

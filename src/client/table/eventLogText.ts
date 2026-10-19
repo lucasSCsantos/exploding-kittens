@@ -9,7 +9,7 @@ export interface EventLogPlayer {
 }
 
 function nameOf(players: EventLogPlayer[], index: number): string {
-  return players[index]?.id ?? `Player ${index}`;
+  return players[index]?.id ?? `Jogador ${index}`;
 }
 
 export function describeHistoryEntry(entry: PlayHistoryEntry, players: EventLogPlayer[]): string {
@@ -19,39 +19,39 @@ export function describeHistoryEntry(entry: PlayHistoryEntry, players: EventLogP
   let text: string;
   switch (effect.kind) {
     case "ATTACK":
-      text = `${actor} played Attack`;
+      text = `${actor} jogou Ataque`;
       break;
     case "TARGETED_ATTACK":
-      text = `${actor} played Targeted Attack on ${nameOf(players, effect.target)}`;
+      text = `${actor} jogou Ataque Direcionado em ${nameOf(players, effect.target)}`;
       break;
     case "SKIP":
-      text = `${actor} played Skip`;
+      text = `${actor} jogou Pular`;
       break;
     case "FAVOR":
-      text = `${actor} played Favor on ${nameOf(players, effect.target)}`;
+      text = `${actor} jogou Favor em ${nameOf(players, effect.target)}`;
       break;
     case "SHUFFLE":
-      text = `${actor} played Shuffle`;
+      text = `${actor} jogou Embaralhar`;
       break;
     case "SEE_FUTURE":
-      text = `${actor} played See the Future`;
+      text = `${actor} jogou Ver o Futuro`;
       break;
     case "ALTER_FUTURE":
-      text = `${actor} played Alter the Future`;
+      text = `${actor} jogou Alterar o Futuro`;
       break;
     case "DRAW_FROM_BOTTOM":
-      text = `${actor} drew from the bottom of the deck`;
+      text = `${actor} comprou do fundo do baralho`;
       break;
     case "PAIR":
-      text = `${actor} played a pair, stealing a card from ${nameOf(players, effect.target)}`;
+      text = `${actor} jogou um par, roubando uma carta de ${nameOf(players, effect.target)}`;
       break;
     case "TRIPLE":
-      text = `${actor} played a triple, asking ${nameOf(players, effect.target)} for ${cardLabel(effect.namedCard)}`;
+      text = `${actor} jogou um trio, pedindo ${cardLabel(effect.namedCard)} para ${nameOf(players, effect.target)}`;
       break;
     case "FIVE_DIFFERENT":
-      text = `${actor} played five different cards, taking one from the discard`;
+      text = `${actor} jogou cinco cartas diferentes, pegando uma do descarte`;
       break;
   }
 
-  return entry.noped ? `${text} — Noped!` : text;
+  return entry.noped ? `${text} — Cancelado!` : text;
 }
