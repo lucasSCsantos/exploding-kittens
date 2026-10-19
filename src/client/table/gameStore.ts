@@ -134,7 +134,6 @@ export const useGameStore = create<GameStoreState>((set) => ({
       if (!res.ok && action.type !== "PASS_NOPE_WINDOW") {
         set({ lastError: res.error });
       }
-        console.log("dispatch result", res.ok, res.ok ? action : res.error);
     });
   },
 
@@ -143,7 +142,6 @@ export const useGameStore = create<GameStoreState>((set) => ({
       socket.emit("peekTopOfDeck", {}, (res: Ack<{ cards: Card[] }>) => {
         if (res.ok) resolve(res.cards);
         else reject(new Error(res.error));
-        console.log("peekTopOfDeck result", res.ok, res.ok ? res.cards : res.error);
       });
     }),
 
