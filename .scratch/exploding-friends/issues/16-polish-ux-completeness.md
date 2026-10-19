@@ -4,9 +4,9 @@
 
 **Blocked by:** 12 (server rooms & real-time multiplayer)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Event log sidebar ("Ana played Skip") so anyone who looked away can catch up
-- [ ] "Play again" button at game end, keeping the same room and players
-- [ ] Portrait-mode handling on phones (rotate-your-device prompt, or a compact portrait layout)
-- [ ] Rooms are deleted after ~30 minutes with nobody connected
+- [x] Event log sidebar ("Ana played Skip") so anyone who looked away can catch up
+- [x] "Play again" button at game end, keeping the same room and players
+- [x] Portrait-mode handling on phones (rotate-your-device prompt, or a compact portrait layout)
+- [x] Rooms are deleted after ~30 minutes with nobody connected
