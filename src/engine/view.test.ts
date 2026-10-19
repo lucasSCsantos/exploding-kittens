@@ -168,6 +168,15 @@ describe("getPlayerView (§3 hidden information)", () => {
     expect(getPlayerView(afterSkip, "c").playHistory).toEqual(expectedHistory);
   });
 
+  it("exposes exploded kittens identically for every viewer, same as discard (§6 auto-revealed on draw)", () => {
+    const kitten = card("EK", "the-kitten");
+    const state = baseState({ explodedKittens: [kitten] });
+
+    for (const id of ["a", "b", "c"]) {
+      expect(getPlayerView(state, id).explodedKittens).toEqual([kitten]);
+    }
+  });
+
   it("throws for an unknown player id", () => {
     const state = baseState();
     expect(() => getPlayerView(state, "nobody")).toThrow(/no player with id/);

@@ -101,3 +101,30 @@ export function drawPileLayers(deckSize: number): number {
   if (deckSize <= 0) return 0;
   return Math.min(6, Math.max(1, Math.ceil(deckSize / 6)));
 }
+
+/** A rect in page coordinates, structurally compatible with `DOMRect`. */
+export interface Rect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+export interface FlightOffset {
+  dx: number;
+  dy: number;
+}
+
+/**
+ * The relative transform (center-to-center) needed to translate an element sitting at `fromRect`
+ * so it lands on `toRect` — e.g. a drawn card flying from the deck to a hand, or a traded card
+ * flying between two seats.
+ */
+export function flightOffset(fromRect: Rect, toRect: Rect): FlightOffset {
+  const fromCenterX = fromRect.left + fromRect.width / 2;
+  const fromCenterY = fromRect.top + fromRect.height / 2;
+  const toCenterX = toRect.left + toRect.width / 2;
+  const toCenterY = toRect.top + toRect.height / 2;
+
+  return { dx: toCenterX - fromCenterX, dy: toCenterY - fromCenterY };
+}

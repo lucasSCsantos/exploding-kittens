@@ -26,6 +26,8 @@ export interface PlayerView {
   playHistory: PlayHistoryEntry[];
   phase: Phase;
   winner: number | null;
+  /** Every Exploding Kitten resolved so far (defused or not) — auto-revealed on draw (spec §6), so public like `discard`. */
+  explodedKittens: Card[];
 }
 
 export function getPlayerView(state: GameState, playerId: string): PlayerView {
@@ -49,5 +51,6 @@ export function getPlayerView(state: GameState, playerId: string): PlayerView {
     playHistory: state.playHistory,
     phase: state.phase,
     winner: state.winner,
+    explodedKittens: state.explodedKittens,
   };
 }

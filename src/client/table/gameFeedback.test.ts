@@ -23,7 +23,7 @@ vi.mock("../haptics.js", () => ({
   vibrate: (pattern: number | number[]) => vibrations.push(pattern),
 }));
 
-const { diffViewForFeedback } = await import("./gameFeedback.js");
+const { diffViewForFeedback, detectKittenEvent, detectCardTransfer } = await import("./gameFeedback.js");
 
 function baseView(overrides: Partial<ServerView> = {}): ServerView {
   return {
@@ -44,6 +44,7 @@ function baseView(overrides: Partial<ServerView> = {}): ServerView {
     phase: "ACTION",
     winner: null,
     nopeDeadline: null,
+    explodedKittens: [],
     ...overrides,
   };
 }
@@ -185,5 +186,107 @@ describe("diffViewForFeedback", () => {
       }),
     );
     expect(vibrations).toHaveLength(0);
+  });
+});
+
+describe("detectKittenEvent", () => {
+  it("returns null when nothing kitten-related changed", () => {
+    expect(detectKittenEvent(baseView(), baseView({ deckSize: 19 }))).toBeNull();
+  });
+
+  it("reports a defuse-in-progress event for the defusing seat, with the kitten card", () => {
+    const kitten = { id: "EK" as const, uid: "the-kitten" };
+    const event = detectKittenEvent(
+      baseView({ phase: "ACTION", currentPlayer: 0 }),
+      baseView({
+        phase: "DEFUSE_REINSERT",
+        currentPlayer: 0,
+        pendingAction: { type: "DEFUSE_REINSERT", kitten },
+      }),
+    );
+    expect(event).toEqual({ kind: "defused", seat: 0, card: kitten });
+  });
+
+  it("still reports a defuse event without a card when pendingAction is unavailable", () => {
+    const event = detectKittenEvent(
+      baseView({ phase: "ACTION", currentPlayer: 1 }),
+      baseView({ phase: "DEFUSE_REINSERT", currentPlayer: 1 }),
+    );
+    expect(event).toEqual({ kind: "defused", seat: 1, card: null });
+  });
+
+  it("reports an elimination for the newly-dead seat, with the exploded kitten card", () => {
+    const kitten = { id: "EK" as const, uid: "the-kitten" };
+    const event = detectKittenEvent(
+      baseView({ explodedKittens: [] }),
+      baseView({
+        players: [
+          { id: "Alice", alive: false, handSize: 0 },
+          { id: "Bob", alive: true, handSize: 7 },
+        ],
+        explodedKittens: [kitten],
+      }),
+    );
+    expect(event).toEqual({ kind: "eliminated", seat: 0, card: kitten });
+  });
+});
+
+describe("detectCardTransfer", () => {
+  it("returns null when nothing transferred", () => {
+    expect(detectCardTransfer(baseView(), baseView({ deckSize: 19 }))).toBeNull();
+  });
+
+  it("detects a Pair steal from the resolved playHistory entry", () => {
+    const transfer = detectCardTransfer(
+      baseView({ playHistory: [] }),
+      baseView({ playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: false }] }),
+    );
+    expect(transfer).toEqual({ fromSeat: 1, toSeat: 0 });
+  });
+
+  it("detects a Triple steal from the resolved playHistory entry", () => {
+    const transfer = detectCardTransfer(
+      baseView({ playHistory: [] }),
+      baseView({
+        playHistory: [
+          { player: 2, effect: { kind: "TRIPLE", target: 0, namedCard: "SKIP" }, noped: false },
+        ],
+      }),
+    );
+    expect(transfer).toEqual({ fromSeat: 0, toSeat: 2 });
+  });
+
+  it("ignores a noped Pair/Triple", () => {
+    const transfer = detectCardTransfer(
+      baseView({ playHistory: [] }),
+      baseView({ playHistory: [{ player: 0, effect: { kind: "PAIR", target: 1 }, noped: true }] }),
+    );
+    expect(transfer).toBeNull();
+  });
+
+  it("ignores unrelated playHistory growth (Skip, Shuffle, etc.)", () => {
+    const transfer = detectCardTransfer(
+      baseView({ playHistory: [] }),
+      baseView({ playHistory: [{ player: 0, effect: { kind: "SKIP" }, noped: false }] }),
+    );
+    expect(transfer).toBeNull();
+  });
+
+  it("detects a Favor hand-off when FAVOR_RESOLVE closes back to ACTION, not when the Favor is first played", () => {
+    const favorOpened = detectCardTransfer(
+      baseView({ phase: "ACTION", playHistory: [] }),
+      baseView({
+        phase: "FAVOR_RESOLVE",
+        pendingAction: { type: "FAVOR", from: 0, target: 1 },
+        playHistory: [{ player: 0, effect: { kind: "FAVOR", target: 1 }, noped: false }],
+      }),
+    );
+    expect(favorOpened).toBeNull();
+
+    const favorResolved = detectCardTransfer(
+      baseView({ phase: "FAVOR_RESOLVE", pendingAction: { type: "FAVOR", from: 0, target: 1 } }),
+      baseView({ phase: "ACTION", pendingAction: null }),
+    );
+    expect(favorResolved).toEqual({ fromSeat: 1, toSeat: 0 });
   });
 });

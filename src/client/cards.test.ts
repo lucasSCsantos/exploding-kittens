@@ -31,6 +31,7 @@ function emptyView(overrides: Partial<PlayerView> = {}): PlayerView {
     playHistory: [],
     phase: "ACTION",
     winner: null,
+    explodedKittens: [],
     ...overrides,
   };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   drawPileLayers,
   fanTransform,
+  flightOffset,
   hashUid,
   lobbySeatPositions,
   messyOffset,
@@ -90,5 +91,25 @@ describe("drawPileLayers", () => {
     expect(drawPileLayers(1)).toBe(1);
     expect(drawPileLayers(12)).toBe(2);
     expect(drawPileLayers(1000)).toBe(6);
+  });
+});
+
+describe("flightOffset", () => {
+  it("is zero when source and destination share a center", () => {
+    const rect = { top: 10, left: 10, width: 40, height: 60 };
+    expect(flightOffset(rect, rect)).toEqual({ dx: 0, dy: 0 });
+  });
+
+  it("computes the delta between rect centers, ignoring size differences", () => {
+    const from = { top: 0, left: 0, width: 20, height: 20 };
+    const to = { top: 100, left: 50, width: 100, height: 100 };
+    // from center: (10, 10); to center: (100, 150)
+    expect(flightOffset(from, to)).toEqual({ dx: 90, dy: 140 });
+  });
+
+  it("supports negative deltas when the destination is above/left of the source", () => {
+    const from = { top: 100, left: 100, width: 20, height: 20 };
+    const to = { top: 0, left: 0, width: 20, height: 20 };
+    expect(flightOffset(from, to)).toEqual({ dx: -100, dy: -100 });
   });
 });

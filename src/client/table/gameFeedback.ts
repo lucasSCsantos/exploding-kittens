@@ -5,11 +5,67 @@
 
 import { playSound } from "../sound.js";
 import { vibrate } from "../haptics.js";
+import type { Card } from "../../engine/types.js";
 import type { ServerView } from "./gameStore.js";
 import { useGameStore } from "./gameStore.js";
 
 const KITTEN_PATTERN = [80, 60, 200];
 const ATTACKED_PATTERN = [150];
+
+/** A kitten moment worth reacting to: a defuse reinsertion just started, or a player was just
+ * eliminated outright. `card` is the kitten involved, when the view has it available. */
+export interface KittenEvent {
+  kind: "defused" | "eliminated";
+  seat: number;
+  card: Card | null;
+}
+
+/** Detects a kitten event in this diff (shared by sound/haptic feedback and loss-overlay UI
+ * state), so the defused/eliminated branching only lives in one place. */
+export function detectKittenEvent(prev: ServerView, next: ServerView): KittenEvent | null {
+  const justDefused = prev.phase !== "DEFUSE_REINSERT" && next.phase === "DEFUSE_REINSERT";
+  if (justDefused) {
+    const card = next.pendingAction?.type === "DEFUSE_REINSERT" ? next.pendingAction.kitten : null;
+    return { kind: "defused", seat: next.currentPlayer, card };
+  }
+
+  const eliminatedSeat = next.players.findIndex(
+    (player, index) => prev.players[index]?.alive && !player.alive,
+  );
+  if (eliminatedSeat !== -1) {
+    const card = next.explodedKittens[next.explodedKittens.length - 1] ?? null;
+    return { kind: "eliminated", seat: eliminatedSeat, card };
+  }
+
+  return null;
+}
+
+export interface CardTransfer {
+  fromSeat: number;
+  toSeat: number;
+}
+
+/** Detects a Favor/Pair/Triple hand-to-hand transfer in this diff. Pair/Triple log their transfer
+ * as a playHistory entry at the moment the card actually moves, but Favor's playHistory entry logs
+ * the request opening (before the giver even chooses a card) — the real hand-off only happens when
+ * FAVOR_RESOLVE closes back to ACTION, so that transition is checked instead. */
+export function detectCardTransfer(prev: ServerView, next: ServerView): CardTransfer | null {
+  if (next.playHistory.length > prev.playHistory.length) {
+    const newEntries = next.playHistory.slice(prev.playHistory.length);
+    const transfer = newEntries.find(
+      (entry) => !entry.noped && (entry.effect.kind === "PAIR" || entry.effect.kind === "TRIPLE"),
+    );
+    if (transfer && (transfer.effect.kind === "PAIR" || transfer.effect.kind === "TRIPLE")) {
+      return { fromSeat: transfer.effect.target, toSeat: transfer.player };
+    }
+  }
+
+  if (prev.phase === "FAVOR_RESOLVE" && next.phase === "ACTION" && prev.pendingAction?.type === "FAVOR") {
+    return { fromSeat: prev.pendingAction.target, toSeat: prev.pendingAction.from };
+  }
+
+  return null;
+}
 
 export function diffViewForFeedback(prev: ServerView | null, next: ServerView): void {
   if (!prev) return;
@@ -31,15 +87,11 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
     playSound("draw");
   }
 
-  const defused = prev.phase !== "DEFUSE_REINSERT" && next.phase === "DEFUSE_REINSERT";
-  const eliminatedIndex = next.players.findIndex(
-    (player, index) => prev.players[index]?.alive && !player.alive,
-  );
-  const kittenEventForYou = (defused && next.currentPlayer === next.you) || eliminatedIndex === next.you;
-  if (kittenEventForYou) {
-    vibrate(KITTEN_PATTERN);
-  }
-  if (defused || eliminatedIndex !== -1) {
+  const kittenEvent = detectKittenEvent(prev, next);
+  if (kittenEvent) {
+    if (kittenEvent.seat === next.you) {
+      vibrate(KITTEN_PATTERN);
+    }
     playSound("explosion");
   }
 
