@@ -158,6 +158,22 @@ describe("diffViewForFeedback", () => {
     expect(vibrations).toHaveLength(1);
   });
 
+  it("does not double-vibrate when a batch contains more than one resolved attack", () => {
+    vibrations.length = 0;
+    diffViewForFeedback(
+      baseView({ you: 1, currentPlayer: 0, playHistory: [] }),
+      baseView({
+        you: 1,
+        currentPlayer: 1,
+        playHistory: [
+          { player: 1, effect: { kind: "ATTACK" }, noped: false },
+          { player: 0, effect: { kind: "ATTACK" }, noped: false },
+        ],
+      }),
+    );
+    expect(vibrations).toHaveLength(1);
+  });
+
   it("ignores a noped attack", () => {
     vibrations.length = 0;
     diffViewForFeedback(

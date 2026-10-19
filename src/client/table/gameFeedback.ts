@@ -32,13 +32,11 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
   }
 
   const defused = prev.phase !== "DEFUSE_REINSERT" && next.phase === "DEFUSE_REINSERT";
-  if (defused && next.currentPlayer === next.you) {
-    vibrate(KITTEN_PATTERN);
-  }
   const eliminatedIndex = next.players.findIndex(
     (player, index) => prev.players[index]?.alive && !player.alive,
   );
-  if (eliminatedIndex === next.you) {
+  const kittenEventForYou = (defused && next.currentPlayer === next.you) || eliminatedIndex === next.you;
+  if (kittenEventForYou) {
     vibrate(KITTEN_PATTERN);
   }
   if (defused || eliminatedIndex !== -1) {
@@ -46,11 +44,17 @@ export function diffViewForFeedback(prev: ServerView | null, next: ServerView): 
   }
 
   if (next.playHistory.length > prev.playHistory.length) {
-    for (const entry of next.playHistory.slice(prev.playHistory.length)) {
-      if (entry.noped) continue;
-      if (entry.effect.kind === "TARGETED_ATTACK" && entry.effect.target === next.you) {
-        vibrate(ATTACKED_PATTERN);
-      } else if (entry.effect.kind === "ATTACK" && next.currentPlayer === next.you) {
+    const newEntries = next.playHistory.slice(prev.playHistory.length);
+    // Only the most recent un-noped attack can be the one that put `next.currentPlayer`
+    // where it is now — earlier entries in the same batch are stale by the time this runs.
+    const lastAttack = [...newEntries]
+      .reverse()
+      .find((entry) => !entry.noped && (entry.effect.kind === "ATTACK" || entry.effect.kind === "TARGETED_ATTACK"));
+    if (lastAttack) {
+      const wasTargeted =
+        lastAttack.effect.kind === "TARGETED_ATTACK" && lastAttack.effect.target === next.you;
+      const wasPlain = lastAttack.effect.kind === "ATTACK" && next.currentPlayer === next.you;
+      if (wasTargeted || wasPlain) {
         vibrate(ATTACKED_PATTERN);
       }
     }
