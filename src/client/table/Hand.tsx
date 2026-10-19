@@ -111,9 +111,13 @@ export function Hand({
       : selectionShape.size === 2 || selectionShape.size === 3 || selectionShape.size === 5;
 
   return (
-    <div className="flex flex-col items-center gap-3 rounded-xl p-2">
+    <div className="relative flex flex-col items-center gap-3 rounded-xl p-2">
       {canPlay && (
-        <span className="flex items-center gap-2">
+        // Sits to the left of the hand, vertically centered, instead of stacked above the fan —
+        // with cards this large, a label above the fan rode up near the table's center and
+        // overlapped the discard pile. Pinned outside the hand's own bounding box so it never
+        // collides with the cards (or anything at the table's center) regardless of hand size.
+        <span className="absolute right-full top-1/2 mr-3 flex -translate-y-1/2 items-center gap-2 whitespace-nowrap">
           <span className="text-sm font-semibold text-amber-300">Sua vez</span>
           {turnsRemaining > 1 && (
             <span
