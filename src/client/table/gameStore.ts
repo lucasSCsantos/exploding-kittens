@@ -134,6 +134,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       if (!res.ok && action.type !== "PASS_NOPE_WINDOW") {
         set({ lastError: res.error });
       }
+        console.log("dispatch result", res.ok, res.ok ? action : res.error);
     });
   },
 
