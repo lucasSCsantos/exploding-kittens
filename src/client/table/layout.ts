@@ -55,6 +55,22 @@ export function opponentSeatPositions(playerCount: number, activeSeat: number): 
   });
 }
 
+/** Lays every joined player out evenly around a full circle, seen from overhead — the lobby has
+ * no "active seat"/first-person view yet, unlike `opponentSeatPositions` (ticket 14). */
+export function lobbySeatPositions(playerCount: number): SeatPosition[] {
+  if (playerCount <= 0) return [];
+  if (playerCount === 1) return [{ seat: 0, xPercent: 50, yPercent: 50 }];
+
+  return Array.from({ length: playerCount }, (_, seat) => {
+    const angleRad = (seat / playerCount) * 2 * Math.PI - Math.PI / 2;
+    return {
+      seat,
+      xPercent: 50 + Math.cos(angleRad) * 38,
+      yPercent: 50 + Math.sin(angleRad) * 38,
+    };
+  });
+}
+
 /** Deterministic hash of a card uid, used so pile jitter is stable across re-renders. */
 export function hashUid(uid: string): number {
   let h = 0;

@@ -5,7 +5,12 @@
 
 import { randomUUID } from "node:crypto";
 import { applyAction as engineApplyAction, type Action } from "../engine/actions.js";
-import { createGame, type SetupConfig } from "../engine/setup.js";
+import {
+  createGame,
+  DEFAULT_LOBBY_CONFIG,
+  type LobbyConfig,
+  type SetupConfig,
+} from "../engine/setup.js";
 import { getPlayerView, type PlayerView } from "../engine/view.js";
 import type { Card, GameState } from "../engine/types.js";
 
@@ -23,6 +28,8 @@ export interface Room {
   code: string;
   hostId: string;
   players: RoomPlayer[];
+  /** The host's chosen rule variants, picked in the lobby before the game starts (ticket 14). */
+  config: LobbyConfig;
   /** null until the host starts the game. */
   state: GameState | null;
 }
@@ -125,6 +132,7 @@ export class RoomManager {
       code,
       hostId: name,
       players: [{ id: name, name, connected: true, token }],
+      config: { ...DEFAULT_LOBBY_CONFIG },
       state: null,
     });
 
@@ -160,7 +168,19 @@ export class RoomManager {
     return { playerId: name, token: newToken };
   }
 
-  startGame(code: string, requesterId: string, config?: SetupConfig): void {
+  /** Host-only: merges `patch` into the room's lobby settings, picked up by the next `startGame`. */
+  updateConfig(code: string, requesterId: string, patch: Partial<LobbyConfig>): void {
+    const room = this.requireRoom(code);
+    if (requesterId !== room.hostId) {
+      throw new Error("RoomManager: only the host can change settings");
+    }
+    if (room.state) {
+      throw new Error("RoomManager: game already started");
+    }
+    room.config = { ...room.config, ...patch };
+  }
+
+  startGame(code: string, requesterId: string, overrides?: SetupConfig): void {
     const room = this.requireRoom(code);
     if (requesterId !== room.hostId) {
       throw new Error("RoomManager: only the host can start the game");
@@ -175,7 +195,7 @@ export class RoomManager {
     const names = room.players.map((p) => p.name);
     // The engine hands back phase SETUP; nothing in applyAction transitions it to ACTION
     // (matches the Phase-2 harness's own fix-up in the old gameStore.startGame).
-    room.state = { ...createGame(names, config), phase: "ACTION" };
+    room.state = { ...createGame(names, { ...room.config, ...overrides }), phase: "ACTION" };
     this.rescheduleTimers(code);
   }
 

@@ -50,6 +50,12 @@ beforeEach(() => {
     token: null,
     hostId: null,
     lobbyPlayers: [],
+    config: {
+      attackStacking: true,
+      comboScope: "cats-only",
+      feralPairRule: "requires-real-cat",
+      extraDefuses: "default",
+    },
     view: null,
     lastError: null,
   });
@@ -119,6 +125,16 @@ describe("reconnect", () => {
   });
 });
 
+describe("updateConfig", () => {
+  it("emits the patch and records an error on failure", () => {
+    useGameStore.getState().updateConfig({ attackStacking: false });
+    expect(lastEmit()).toMatchObject({ event: "updateConfig", payload: { attackStacking: false } });
+
+    lastEmit().ack!({ ok: false, error: "only the host can change settings" });
+    expect(useGameStore.getState().lastError).toBe("only the host can change settings");
+  });
+});
+
 describe("dispatch", () => {
   it("emits the action and records an error on failure", () => {
     useGameStore.getState().dispatch({ type: "DRAW" });
@@ -153,13 +169,29 @@ describe("peekTopOfDeck", () => {
 });
 
 describe("server-pushed events", () => {
-  it("lobby event replaces the roster", () => {
-    handlers.get("lobby")!({ code: "ABCD", hostId: "Alice", players: [{ id: "Alice", name: "Alice", connected: true }] });
+  it("lobby event replaces the roster and settings", () => {
+    handlers.get("lobby")!({
+      code: "ABCD",
+      hostId: "Alice",
+      players: [{ id: "Alice", name: "Alice", connected: true }],
+      config: {
+        attackStacking: false,
+        comboScope: "any-matching",
+        feralPairRule: "allowed",
+        extraDefuses: 2,
+      },
+    });
 
     expect(useGameStore.getState()).toMatchObject({
       code: "ABCD",
       hostId: "Alice",
       lobbyPlayers: [{ id: "Alice", name: "Alice", connected: true }],
+      config: {
+        attackStacking: false,
+        comboScope: "any-matching",
+        feralPairRule: "allowed",
+        extraDefuses: 2,
+      },
     });
   });
 

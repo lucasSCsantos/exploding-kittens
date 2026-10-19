@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { Server, type Socket } from "socket.io";
 import type { Action } from "../engine/actions.js";
-import type { SetupConfig } from "../engine/setup.js";
+import type { LobbyConfig, SetupConfig } from "../engine/setup.js";
 import { RoomManager } from "./rooms.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -57,6 +57,7 @@ function broadcastRoom(code: string): void {
         code: room.code,
         hostId: room.hostId,
         players: room.players.map((p) => ({ id: p.id, name: p.name, connected: p.connected })),
+        config: room.config,
       });
     }
   }
@@ -99,6 +100,18 @@ io.on("connection", (socket) => {
       }
     },
   );
+
+  socket.on("updateConfig", (patch: Partial<LobbyConfig>, ack: (res: Ack) => void) => {
+    const binding = socketBindings.get(socket.id);
+    if (!binding) return ack({ ok: false, error: "not in a room" });
+    try {
+      rooms.updateConfig(binding.code, binding.playerId, patch);
+      ack({ ok: true });
+      broadcastRoom(binding.code);
+    } catch (err) {
+      ack({ ok: false, error: errorMessage(err) });
+    }
+  });
 
   socket.on("startGame", (config: SetupConfig | undefined, ack: (res: Ack) => void) => {
     const binding = socketBindings.get(socket.id);

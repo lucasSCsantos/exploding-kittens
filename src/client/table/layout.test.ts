@@ -3,6 +3,7 @@ import {
   drawPileLayers,
   fanTransform,
   hashUid,
+  lobbySeatPositions,
   messyOffset,
   opponentSeatPositions,
 } from "./layout.js";
@@ -44,6 +45,25 @@ describe("opponentSeatPositions", () => {
     const seats = opponentSeatPositions(3, 0);
     expect(seats[0]!.xPercent).toBeLessThan(50);
     expect(seats[1]!.xPercent).toBeGreaterThan(50);
+  });
+});
+
+describe("lobbySeatPositions", () => {
+  it("returns no seats for an empty table", () => {
+    expect(lobbySeatPositions(0)).toEqual([]);
+  });
+
+  it("centers a lone seat", () => {
+    expect(lobbySeatPositions(1)).toEqual([{ seat: 0, xPercent: 50, yPercent: 50 }]);
+  });
+
+  it("spreads every player evenly around the circle", () => {
+    const seats = lobbySeatPositions(4);
+    expect(seats.map((s) => s.seat)).toEqual([0, 1, 2, 3]);
+    expect(seats[0]!.yPercent).toBeLessThan(50); // top
+    expect(seats[2]!.yPercent).toBeGreaterThan(50); // bottom
+    expect(seats[1]!.xPercent).toBeGreaterThan(50); // right
+    expect(seats[3]!.xPercent).toBeLessThan(50); // left
   });
 });
 

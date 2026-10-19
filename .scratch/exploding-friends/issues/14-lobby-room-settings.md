@@ -4,10 +4,10 @@
 
 **Blocked by:** 12 (server rooms & real-time multiplayer)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Lobby UI shows all joined players seated around a virtual table (per project description §6)
-- [ ] Host-only controls for `attackStacking`, `comboScope`, `feralPairRule`, `extraDefuses`
-- [ ] Chosen settings are passed into `createGame`'s `config` when the host starts the game
-- [ ] Non-host players see the current settings but cannot change them
-- [ ] Manual test: starting a game with non-default settings (e.g. `attackStacking=off`) visibly changes engine behavior in play
+- [x] Lobby UI shows all joined players seated around a virtual table (per project description §6)
+- [x] Host-only controls for `attackStacking`, `comboScope`, `feralPairRule`, `extraDefuses`
+- [x] Chosen settings are passed into `createGame`'s `config` when the host starts the game
+- [x] Non-host players see the current settings but cannot change them
+- [x] Manual test: starting a game with non-default settings (e.g. `attackStacking=off`) visibly changes engine behavior in play

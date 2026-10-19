@@ -4,7 +4,7 @@
 
 import { create } from "zustand";
 import type { Action } from "../../engine/actions.js";
-import type { SetupConfig } from "../../engine/setup.js";
+import { DEFAULT_LOBBY_CONFIG, type LobbyConfig, type SetupConfig } from "../../engine/setup.js";
 import type { Card } from "../../engine/types.js";
 import type { PlayerView } from "../../engine/view.js";
 import { clearSession, loadSession, saveSession } from "../session.js";
@@ -36,10 +36,13 @@ interface GameStoreState {
   hostId: string | null;
   /** The pre-start roster; superseded by `view` once the game starts. */
   lobbyPlayers: LobbyPlayer[];
+  /** The host's chosen rule variants (ticket 14); visible to every player, editable by the host. */
+  config: LobbyConfig;
   view: ServerView | null;
   lastError: string | null;
   createRoom: (name: string) => void;
   joinRoom: (code: string, name: string) => void;
+  updateConfig: (patch: Partial<LobbyConfig>) => void;
   startGame: (config?: SetupConfig) => void;
   dispatch: (action: Action) => void;
   peekTopOfDeck: () => Promise<Card[]>;
@@ -55,6 +58,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   token: storedSession?.token ?? null,
   hostId: null,
   lobbyPlayers: [],
+  config: DEFAULT_LOBBY_CONFIG,
   view: null,
   lastError: null,
 
@@ -88,6 +92,12 @@ export const useGameStore = create<GameStoreState>((set) => ({
     );
   },
 
+  updateConfig: (patch) => {
+    socket.emit("updateConfig", patch, (res: Ack) => {
+      if (!res.ok) set({ lastError: res.error });
+    });
+  },
+
   startGame: (config) => {
     socket.emit("startGame", config, (res: Ack) => {
       if (!res.ok) set({ lastError: res.error });
@@ -115,13 +125,17 @@ export const useGameStore = create<GameStoreState>((set) => ({
   clearError: () => set({ lastError: null }),
 }));
 
-socket.on("lobby", (payload: { code: string; hostId: string; players: LobbyPlayer[] }) => {
-  useGameStore.setState({
-    code: payload.code,
-    hostId: payload.hostId,
-    lobbyPlayers: payload.players,
-  });
-});
+socket.on(
+  "lobby",
+  (payload: { code: string; hostId: string; players: LobbyPlayer[]; config: LobbyConfig }) => {
+    useGameStore.setState({
+      code: payload.code,
+      hostId: payload.hostId,
+      lobbyPlayers: payload.players,
+      config: payload.config,
+    });
+  },
+);
 
 socket.on("view", (view: ServerView) => {
   useGameStore.setState({ view });

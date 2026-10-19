@@ -114,6 +114,48 @@ describe("startGame", () => {
   });
 });
 
+describe("updateConfig", () => {
+  it("only the host can change settings", () => {
+    const rooms = new RoomManager();
+    const { code } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    expect(() => rooms.updateConfig(code, "Bob", { attackStacking: false })).toThrow(/only the host/);
+  });
+
+  it("merges a patch into the room's pending settings", () => {
+    const rooms = new RoomManager();
+    const { code, playerId } = rooms.createRoom("Alice");
+    rooms.updateConfig(code, playerId, { attackStacking: false });
+    rooms.updateConfig(code, playerId, { comboScope: "any-matching" });
+
+    expect(rooms.getRoom(code)?.config).toMatchObject({
+      attackStacking: false,
+      comboScope: "any-matching",
+    });
+  });
+
+  it("cannot be changed once the game has started", () => {
+    const rooms = new RoomManager();
+    const { code, playerId } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.startGame(code, playerId, { seed: 1 });
+
+    expect(() => rooms.updateConfig(code, playerId, { attackStacking: false })).toThrow(
+      /already started/,
+    );
+  });
+
+  it("startGame applies the room's pending settings to the created game", () => {
+    const rooms = new RoomManager();
+    const { code, playerId } = rooms.createRoom("Alice");
+    rooms.joinRoom(code, "Bob");
+    rooms.updateConfig(code, playerId, { attackStacking: false });
+    rooms.startGame(code, playerId, { seed: 1 });
+
+    expect(rooms.getRoom(code)?.state?.config.attackStacking).toBe(false);
+  });
+});
+
 describe("applyAction", () => {
   function startedRoom(seed = 1) {
     const rooms = new RoomManager();
