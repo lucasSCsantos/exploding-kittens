@@ -1,20 +1,28 @@
-// Starts the client-side hot-seat harness with however many names the host types in.
+// Entry screen: create a new room (becoming its host) or join one by its 4-letter code
+// (ticket 12). Replaces the Phase-2 hot-seat name list.
 
 import { useState } from "react";
 import { useGameStore } from "./gameStore.js";
 
 export function NewGameForm() {
-  const [namesInput, setNamesInput] = useState("Alice, Bob, Charlie");
-  const startGame = useGameStore((s) => s.startGame);
+  const [mode, setMode] = useState<"create" | "join">("create");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const createRoom = useGameStore((s) => s.createRoom);
+  const joinRoom = useGameStore((s) => s.joinRoom);
+  const lastError = useGameStore((s) => s.lastError);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const names = namesInput
-      .split(",")
-      .map((n) => n.trim())
-      .filter((n) => n.length > 0);
-    if (names.length >= 2) {
-      startGame(names);
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
+    if (mode === "create") {
+      createRoom(trimmedName);
+    } else {
+      const trimmedCode = code.trim();
+      if (!trimmedCode) return;
+      joinRoom(trimmedCode, trimmedName);
     }
   }
 
@@ -24,20 +32,53 @@ export function NewGameForm() {
       className="flex h-screen flex-col items-center justify-center gap-4 bg-neutral-900 text-white"
     >
       <h1 className="text-2xl font-semibold">Exploding Friends</h1>
+
+      <div className="flex gap-2 rounded-full bg-neutral-800 p-1 text-sm">
+        <button
+          type="button"
+          onClick={() => setMode("create")}
+          className={`rounded-full px-4 py-1 ${mode === "create" ? "bg-amber-500 text-neutral-900" : "text-white/70"}`}
+        >
+          Create room
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("join")}
+          className={`rounded-full px-4 py-1 ${mode === "join" ? "bg-amber-500 text-neutral-900" : "text-white/70"}`}
+        >
+          Join room
+        </button>
+      </div>
+
       <label className="flex flex-col gap-1 text-sm text-neutral-300">
-        Player names (comma-separated, 2-10)
+        Your name
         <input
-          value={namesInput}
-          onChange={(e) => setNamesInput(e.target.value)}
-          className="w-80 rounded border border-neutral-600 bg-neutral-800 px-3 py-2 text-white"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-64 rounded border border-neutral-600 bg-neutral-800 px-3 py-2 text-white"
         />
       </label>
+
+      {mode === "join" && (
+        <label className="flex flex-col gap-1 text-sm text-neutral-300">
+          Room code
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            maxLength={4}
+            className="w-64 rounded border border-neutral-600 bg-neutral-800 px-3 py-2 text-center text-lg uppercase tracking-widest text-white"
+          />
+        </label>
+      )}
+
       <button
         type="submit"
         className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900"
       >
-        Start hot-seat game
+        {mode === "create" ? "Create room" : "Join room"}
       </button>
+
+      {lastError && <p className="text-sm text-red-400">{lastError}</p>}
     </form>
   );
 }

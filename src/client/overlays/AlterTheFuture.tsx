@@ -1,7 +1,6 @@
 // Alter the Future: a private fan-out of the top cards the player can drag to reorder before
-// committing (ticket 11). Reading `cards` straight off the harness's full `GameState.deck` is
-// safe only because this is a local, single-device hot-seat harness (see gameStore.ts) — a real
-// server (ticket 12+) would need a different protocol that doesn't hand the deck to the client.
+// committing (ticket 11). `cards` comes from the server's `peekTopOfDeck` query (ticket 12),
+// answered only for the current player — never the full deck.
 
 import { useState } from "react";
 import { Reorder } from "motion/react";

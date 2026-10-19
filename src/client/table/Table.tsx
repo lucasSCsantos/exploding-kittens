@@ -1,6 +1,7 @@
-// The table screen: felt background, seats around the edge, draw/discard piles, the active
-// seat's hand, a dev-only seat switcher (ticket 10), and every special-moment overlay the rules
-// need — Nope window, See/Alter the Future, Defuse reinsertion, Favor, and combos (ticket 11).
+// The table screen: felt background, opponents around the edge, draw/discard piles, this
+// player's own hand (driven by the server's `view` for this socket — ticket 12), and every
+// special-moment overlay the rules need — Nope window, See/Alter the Future, Defuse reinsertion,
+// Favor, and combos (ticket 11).
 
 import { useRef, useState } from "react";
 import type { CardId } from "../../engine/types.js";
@@ -17,7 +18,7 @@ import { DiscardPile } from "./DiscardPile.js";
 import { DrawPile } from "./DrawPile.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
-import { useActivePlayerView, useGameStore } from "./gameStore.js";
+import { useGameStore } from "./gameStore.js";
 import { opponentSeatPositions } from "./layout.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
 import type { Card } from "../../engine/types.js";
@@ -26,24 +27,22 @@ import type { Card } from "../../engine/types.js";
  * before we know the full Action to dispatch" (targets, a named card, a discard pick, an order). */
 type PendingPlay =
   | { kind: "target"; cardUid: string; toAction: (cardUid: string, target: number) => import("../../engine/actions.js").Action }
-  | { kind: "alterFuture"; cardUid: string }
+  | { kind: "alterFuture"; cardUid: string; cards: Card[] }
   | { kind: "pairTarget"; cardUids: [string, string] }
   | { kind: "tripleTarget"; cardUids: [string, string, string] }
   | { kind: "tripleName"; cardUids: [string, string, string]; target: number }
   | { kind: "fiveDifferent"; cardUids: [string, string, string, string, string] };
 
 export function Table() {
-  const game = useGameStore((s) => s.game);
-  const activeSeat = useGameStore((s) => s.activeSeat);
-  const setActiveSeat = useGameStore((s) => s.setActiveSeat);
   const dispatch = useGameStore((s) => s.dispatch);
+  const peekTopOfDeck = useGameStore((s) => s.peekTopOfDeck);
   const lastError = useGameStore((s) => s.lastError);
-  const view = useActivePlayerView();
+  const view = useGameStore((s) => s.view);
   const discardRef = useRef<HTMLButtonElement>(null);
   const [pendingPlay, setPendingPlay] = useState<PendingPlay | null>(null);
   const [dismissedSeeFutureAt, setDismissedSeeFutureAt] = useState(0);
 
-  if (!game || !view) return null;
+  if (!view) return null;
 
   assignDesigns(view);
 
@@ -59,7 +58,12 @@ export function Table() {
         else if (play.kind === "target") {
           setPendingPlay({ kind: "target", cardUid: shape.cards[0].uid, toAction: play.toAction });
         } else if (play.kind === "alterFuture") {
-          setPendingPlay({ kind: "alterFuture", cardUid: shape.cards[0].uid });
+          const cardUid = shape.cards[0].uid;
+          peekTopOfDeck()
+            .then((cards) => setPendingPlay({ kind: "alterFuture", cardUid, cards }))
+            .catch((err: unknown) =>
+              useGameStore.setState({ lastError: err instanceof Error ? err.message : String(err) }),
+            );
         }
         break;
       }
@@ -98,24 +102,9 @@ export function Table() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-gradient-to-b from-green-900 to-green-950">
-      <div className="absolute left-1/2 top-3 flex -translate-x-1/2 gap-2 rounded-full bg-black/40 px-3 py-1">
-        {game.players.map((p, seat) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setActiveSeat(seat)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              seat === activeSeat ? "bg-amber-400 text-neutral-900" : "text-white/70 hover:text-white"
-            }`}
-          >
-            DEV: {p.id}
-          </button>
-        ))}
-      </div>
-
       {view.winner !== null && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70">
-          <p className="text-3xl font-bold text-amber-300">{game.players[view.winner]!.id} wins!</p>
+          <p className="text-3xl font-bold text-amber-300">{view.players[view.winner]!.id} wins!</p>
         </div>
       )}
 
@@ -255,7 +244,7 @@ export function Table() {
 
       {pendingPlay?.kind === "alterFuture" && (
         <AlterTheFuture
-          cards={game.deck.slice(0, Math.min(3, game.deck.length))}
+          cards={pendingPlay.cards}
           onConfirm={(order) => {
             dispatch({ type: "PLAY_ALTER_FUTURE", cardUid: pendingPlay.cardUid, order });
             setPendingPlay(null);

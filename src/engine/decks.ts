@@ -1,6 +1,6 @@
 // Deck-tier composition tables, as pure data — see spec §2.1.
 
-import type { Card, CardId, CatBreakdown, CatCardId, DeckTier } from "./types";
+import type { Card, CardId, CatBreakdown, CatCardId, DeckTier } from "./types.js";
 
 type NonCatCardId = Exclude<CardId, CatCardId | "EK">;
 

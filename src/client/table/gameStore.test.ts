@@ -1,61 +1,142 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { useGameStore } from "./gameStore.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-function names(n: number): string[] {
-  return Array.from({ length: n }, (_, i) => `p${i}`);
+type Handler = (...args: unknown[]) => void;
+
+const handlers = new Map<string, Handler>();
+const emitted: { event: string; payload: unknown; ack?: Handler }[] = [];
+
+vi.mock("../socket.js", () => ({
+  socket: {
+    on: (event: string, cb: Handler) => {
+      handlers.set(event, cb);
+    },
+    emit: (event: string, payload: unknown, ack?: Handler) => {
+      emitted.push({ event, payload, ack });
+    },
+  },
+}));
+
+const { useGameStore } = await import("./gameStore.js");
+
+function lastEmit() {
+  return emitted[emitted.length - 1]!;
 }
 
 beforeEach(() => {
-  useGameStore.setState({ game: null, activeSeat: 0, lastError: null });
+  emitted.length = 0;
+  useGameStore.setState({
+    code: null,
+    playerId: null,
+    name: null,
+    token: null,
+    hostId: null,
+    lobbyPlayers: [],
+    view: null,
+    lastError: null,
+  });
 });
 
-describe("startGame", () => {
-  it("creates a game and resets seat/error state", () => {
-    useGameStore.getState().startGame(names(3), { seed: 1 });
-    const { game, activeSeat, lastError } = useGameStore.getState();
+describe("createRoom", () => {
+  it("stores code/playerId/token once the server acknowledges", () => {
+    useGameStore.getState().createRoom("Alice");
+    expect(lastEmit().event).toBe("createRoom");
+    expect(lastEmit().payload).toBe("Alice");
 
-    expect(game).not.toBeNull();
-    expect(game!.players).toHaveLength(3);
-    expect(game!.phase).toBe("ACTION");
-    expect(activeSeat).toBe(0);
-    expect(lastError).toBeNull();
+    lastEmit().ack!({ ok: true, code: "ABCD", playerId: "Alice", token: "secret" });
+
+    expect(useGameStore.getState()).toMatchObject({
+      code: "ABCD",
+      playerId: "Alice",
+      name: "Alice",
+      token: "secret",
+      lastError: null,
+    });
+  });
+
+  it("records an error instead of throwing on failure", () => {
+    useGameStore.getState().createRoom("Alice");
+    lastEmit().ack!({ ok: false, error: "name is required" });
+
+    expect(useGameStore.getState().lastError).toBe("name is required");
+    expect(useGameStore.getState().code).toBeNull();
+  });
+});
+
+describe("joinRoom", () => {
+  it("sends the code and name, stores the result", () => {
+    useGameStore.getState().joinRoom("abcd", "Bob");
+    expect(lastEmit()).toMatchObject({ event: "joinRoom", payload: { code: "abcd", name: "Bob" } });
+
+    lastEmit().ack!({ ok: true, code: "ABCD", playerId: "Bob", token: "secret" });
+    expect(useGameStore.getState()).toMatchObject({ playerId: "Bob", name: "Bob", token: "secret" });
+  });
+});
+
+describe("reconnect", () => {
+  it("rejoins with the stored name and token when the socket reconnects", () => {
+    useGameStore.setState({ code: "ABCD", name: "Alice", token: "secret" });
+    handlers.get("connect")!();
+
+    expect(lastEmit()).toMatchObject({
+      event: "joinRoom",
+      payload: { code: "ABCD", name: "Alice", token: "secret" },
+    });
+  });
+
+  it("does nothing if this socket never joined a room", () => {
+    handlers.get("connect")!();
+    expect(emitted).toHaveLength(0);
   });
 });
 
 describe("dispatch", () => {
-  it("applies a valid action and advances game state", () => {
-    useGameStore.getState().startGame(names(2), { seed: 2 });
-    const before = useGameStore.getState().game!;
-
+  it("emits the action and records an error on failure", () => {
     useGameStore.getState().dispatch({ type: "DRAW" });
+    expect(lastEmit()).toMatchObject({ event: "action", payload: { type: "DRAW" } });
 
-    const after = useGameStore.getState().game!;
-    expect(after).not.toBe(before);
+    lastEmit().ack!({ ok: false, error: "not your turn" });
+    expect(useGameStore.getState().lastError).toBe("not your turn");
+  });
+
+  it("does not surface a PASS_NOPE_WINDOW failure as an error", () => {
+    useGameStore.getState().dispatch({ type: "PASS_NOPE_WINDOW" });
+    lastEmit().ack!({ ok: false, error: "no Nope window is open" });
+
     expect(useGameStore.getState().lastError).toBeNull();
-  });
-
-  it("records an error instead of throwing when the action is invalid", () => {
-    useGameStore.getState().startGame(names(2), { seed: 3 });
-    const before = useGameStore.getState().game;
-
-    expect(() =>
-      useGameStore.getState().dispatch({ type: "PLAY_SKIP", cardUid: "not-a-real-card" }),
-    ).not.toThrow();
-
-    expect(useGameStore.getState().lastError).toMatch(/not in the current player's hand/);
-    expect(useGameStore.getState().game).toBe(before);
-  });
-
-  it("is a no-op before a game has started", () => {
-    expect(() => useGameStore.getState().dispatch({ type: "DRAW" })).not.toThrow();
-    expect(useGameStore.getState().game).toBeNull();
   });
 });
 
-describe("setActiveSeat", () => {
-  it("switches which seat's view is active", () => {
-    useGameStore.getState().startGame(names(3), { seed: 4 });
-    useGameStore.getState().setActiveSeat(2);
-    expect(useGameStore.getState().activeSeat).toBe(2);
+describe("peekTopOfDeck", () => {
+  it("resolves with the cards the server sends back", async () => {
+    const promise = useGameStore.getState().peekTopOfDeck();
+    lastEmit().ack!({ ok: true, cards: [{ id: "SKIP", uid: "x" }] });
+
+    await expect(promise).resolves.toEqual([{ id: "SKIP", uid: "x" }]);
+  });
+
+  it("rejects when the server refuses", async () => {
+    const promise = useGameStore.getState().peekTopOfDeck();
+    lastEmit().ack!({ ok: false, error: "only the current player can peek" });
+
+    await expect(promise).rejects.toThrow("only the current player can peek");
+  });
+});
+
+describe("server-pushed events", () => {
+  it("lobby event replaces the roster", () => {
+    handlers.get("lobby")!({ code: "ABCD", hostId: "Alice", players: [{ id: "Alice", name: "Alice", connected: true }] });
+
+    expect(useGameStore.getState()).toMatchObject({
+      code: "ABCD",
+      hostId: "Alice",
+      lobbyPlayers: [{ id: "Alice", name: "Alice", connected: true }],
+    });
+  });
+
+  it("view event replaces the player view", () => {
+    const view = { you: 0, phase: "ACTION" };
+    handlers.get("view")!(view);
+
+    expect(useGameStore.getState().view).toBe(view);
   });
 });

@@ -4,11 +4,21 @@
 
 **Blocked by:** 11 (client overlays & combos)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] `src/server/rooms.ts`: `RoomManager` — create/join by 4-letter code, max 10 players, first joiner is host, holds one `GameState` + engine instance per room
-- [ ] `src/server/index.ts` expanded: Express serves `dist/client`; Socket.IO handles `join`, `startGame`, `action`, `nope`, `favorResponse`, etc.
-- [ ] Every state-changing event re-emits `getPlayerView(state, playerId)` to each socket individually — never a broadcast of raw state
-- [ ] Replace the Phase-2 local Zustand harness with real socket-driven state updates on the client
-- [ ] Verified through the deployed URL from ticket 02: Socket.IO connects same-origin (no hard-coded URLs), server honors `process.env.PORT` under the real host
-- [ ] Manual test: 2+ separate browser sessions (including one real phone) create a room, join by code, and play a full game with hidden information correctly enforced for each viewer
+- [x] `src/server/rooms.ts`: `RoomManager` — create/join by 4-letter code, max 10 players, first joiner is host, holds one `GameState` per room
+- [x] `src/server/index.ts` expanded: Express serves `dist/client`; Socket.IO handles `createRoom`, `joinRoom`, `startGame`, `action` (all engine actions, including `PLAY_NOPE`/`RESOLVE_FAVOR`), and `peekTopOfDeck`
+- [x] Every state-changing event re-emits `getPlayerView(state, playerId)` to each socket individually — never a broadcast of raw state
+- [x] Replace the Phase-2 local Zustand harness with real socket-driven state updates on the client
+- [ ] Verified through the deployed URL from ticket 02: Socket.IO connects same-origin (no hard-coded URLs), server honors `process.env.PORT` under the real host — code side done (see comments), owner still needs to confirm against the live deployed URL
+- [ ] Manual test: 2+ separate browser sessions (including one real phone) create a room, join by code, and play a full game with hidden information correctly enforced for each viewer — needs the project owner, not automatable
+
+## Comments
+
+- `RoomManager` (`src/server/rooms.ts`) is the authorization boundary the engine itself doesn't have: the engine only knows seat indices, so `applyAction` here checks the acting player's id actually owns that seat before calling into the engine (current player for most actions, the Nope player for `PLAY_NOPE`, the Favor target for `RESOLVE_FAVOR`; `PASS_NOPE_WINDOW` is open to anyone since every client races its own countdown). Covered by `src/server/rooms.test.ts`.
+- Added one new protocol piece beyond the ticket's literal list: `peekTopOfDeck`, a read-only query answered only to the current player, while they hold an Alter the Future card, with `deck.slice(0, 3)`. It replaces the old hot-seat harness's shortcut of reading `GameState.deck` straight off the client (see the stale warning that used to live in `AlterTheFuture.tsx`) — Alter the Future still needs to show the player the actual top cards before they submit a reorder, and a real server can't hand over the deck to do that. The "holding an ATF card" gate (not just "is the current player") matters: without it, any current player could call this repeatedly for a free, unlimited See the Future the engine's own rules never grant.
+- Player identity = display name, unique per room (`RoomManager` rejects a duplicate name while the room is still in its lobby, same as `createGame`'s existing `players[].id`). A dropped/reloaded connection can reclaim its seat by rejoining with the same name **and** the secret token the server handed out on the original join/create — without the right token, that name is just taken. (An earlier pass let anyone reclaim a seat by name alone, which would have let any client read another player's hand by guessing their display name; closed before committing.) The client auto-rejoins with its stored token on every socket reconnect (`gameStore.ts`'s `socket.on("connect", ...)`), so a brief drop (e.g. a phone backgrounding the tab) doesn't lock the player out.
+- Client (`src/client/table/gameStore.ts`) now holds nothing but what the server told this socket: the lobby roster pre-start, or this player's own `PlayerView` once the game starts. `src/client/table/NewGameForm.tsx` gained a create/join toggle, `src/client/table/Lobby.tsx` is new (roster + host-only Start button), and `Table.tsx` lost the Phase-2 dev seat-switcher — there's no "switch seats" concept anymore, each socket is one real player.
+- `vite.config.ts` proxies `/socket.io` to `localhost:3000` in dev only, so `io()` can stay same-origin with no hard-coded URL in both dev (two processes) and production (one Express origin serving everything) — satisfies the same-origin requirement without environment-specific client code.
+- Also folded in an unrelated, already-in-progress fix left on disk: `src/engine/decks.ts` (+ its two test files) was still missing the `.js` extension on a relative import required by `tsconfig.server.json`'s `nodenext` resolution — every other engine file already had it (see ticket 02's comments, which explicitly flagged this and deliberately left it for whoever committed engine code next).
+- Not done, and out of scope for a code-only pass: the two manual/owner checklist items above. Everything else — build, both tsconfigs, and the full vitest suite — passes; also smoke-tested two real `socket.io-client` connections end to end against the built server (room create/join, lobby broadcast, game start, a `DRAW` action, and the `peekTopOfDeck` authorization rule) outside the automated test suite.

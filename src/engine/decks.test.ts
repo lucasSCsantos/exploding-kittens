@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { CAT_BREAKDOWN, DECK_COMPOSITION, buildBaseDeck, deckTierForPlayerCount } from "./decks";
-import type { CatCardId, DeckTier } from "./types";
+import { CAT_BREAKDOWN, DECK_COMPOSITION, buildBaseDeck, deckTierForPlayerCount } from "./decks.js";
+import type { CatCardId, DeckTier } from "./types.js";
 
 describe("deckTierForPlayerCount", () => {
   it.each([
@@ -71,7 +71,7 @@ describe("DECK_COMPOSITION", () => {
 
   it("CAT_BREAKDOWN sums to 14/20/34 per tier", () => {
     const sum = (tier: DeckTier) =>
-      Object.values(CAT_BREAKDOWN[tier]).reduce((a, b) => a + b, 0);
+      Object.values(CAT_BREAKDOWN[tier]).reduce((a: number, b: number) => a + b, 0);
     expect(sum("paw-print")).toBe(14);
     expect(sum("standard")).toBe(20);
     expect(sum("combined")).toBe(34);

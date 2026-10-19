@@ -1,13 +1,18 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import { Lobby } from "./table/Lobby.js";
 import { NewGameForm } from "./table/NewGameForm.js";
 import { Table } from "./table/Table.js";
 import { useGameStore } from "./table/gameStore.js";
 
 function App() {
-  const hasGame = useGameStore((s) => s.game !== null);
-  return hasGame ? <Table /> : <NewGameForm />;
+  const code = useGameStore((s) => s.code);
+  const view = useGameStore((s) => s.view);
+
+  if (!code) return <NewGameForm />;
+  if (!view) return <Lobby />;
+  return <Table />;
 }
 
 const container = document.getElementById("root");

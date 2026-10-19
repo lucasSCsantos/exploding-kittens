@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { totalDefuseCount } from "./decks";
-import { createGame } from "./setup";
-import type { DeckTier } from "./types";
+import { totalDefuseCount } from "./decks.js";
+import { createGame } from "./setup.js";
+import type { DeckTier } from "./types.js";
 
 describe("createGame", () => {
   it("rejects N<2 or N>10", () => {
