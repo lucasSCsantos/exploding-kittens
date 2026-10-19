@@ -230,6 +230,7 @@ export class RoomManager {
       throw new Error("RoomManager: game has not started");
     }
     requireAuthorizedActor(room.state, playerId, action);
+    console.log('here')
     room.state = engineApplyAction(room.state, action);
     this.rescheduleTimers(code);
   }
