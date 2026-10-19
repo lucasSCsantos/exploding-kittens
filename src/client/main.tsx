@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+// Side-effect import only: registers the sound/haptics feedback subscription (ticket 15).
+import "./table/gameFeedback.js";
 import { Lobby } from "./table/Lobby.js";
 import { NewGameForm } from "./table/NewGameForm.js";
 import { Table } from "./table/Table.js";
