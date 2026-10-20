@@ -50,6 +50,7 @@ export function Table() {
   const dispatch = useGameStore((s) => s.dispatch);
   const peekTopOfDeck = useGameStore((s) => s.peekTopOfDeck);
   const playAgain = useGameStore((s) => s.playAgain);
+  const leaveRoom = useGameStore((s) => s.leaveRoom);
   const view = useGameStore((s) => s.view);
   const playerId = useGameStore((s) => s.playerId);
   const hostId = useGameStore((s) => s.hostId);
@@ -196,6 +197,7 @@ export function Table() {
             setPlayAgainClicked(true);
             playAgain();
           }}
+          onLeave={leaveRoom}
         />
       )}
 

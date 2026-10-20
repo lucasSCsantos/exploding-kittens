@@ -58,6 +58,11 @@ interface GameStoreState {
   updateConfig: (patch: Partial<LobbyConfig>) => void;
   startGame: (config?: SetupConfig) => void;
   playAgain: () => void;
+  /** Leaves the current room and returns to NewGameForm. Drops the socket's room binding by
+   * disconnecting and reconnecting (the server already tracks a disconnected seat via its normal
+   * grace-period/cleanup path — ticket 13/16 — so there's no separate "leaveRoom" server event to
+   * wire up), and clears the stored session so a later reconnect never tries to reclaim this seat. */
+  leaveRoom: () => void;
   dispatch: (action: Action) => void;
   peekTopOfDeck: () => Promise<Card[]>;
   clearError: () => void;
@@ -124,6 +129,26 @@ export const useGameStore = create<GameStoreState>((set) => ({
   playAgain: () => {
     socket.emit("playAgain", {}, (res: Ack) => {
       if (!res.ok) set({ lastError: res.error });
+    });
+  },
+
+  leaveRoom: () => {
+    clearSession();
+    socket.disconnect();
+    socket.connect();
+    set({
+      code: null,
+      playerId: null,
+      name: null,
+      token: null,
+      hostId: null,
+      lobbyPlayers: [],
+      config: DEFAULT_LOBBY_CONFIG,
+      view: null,
+      lastError: null,
+      lastElimination: null,
+      lastTransfer: null,
+      lastDraw: null,
     });
   },
 

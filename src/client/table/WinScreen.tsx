@@ -14,9 +14,16 @@ export interface WinScreenProps {
   isHost: boolean;
   playAgainDisabled: boolean;
   onPlayAgain: () => void;
+  onLeave: () => void;
 }
 
-export function WinScreen({ winnerName, isHost, playAgainDisabled, onPlayAgain }: WinScreenProps) {
+export function WinScreen({
+  winnerName,
+  isHost,
+  playAgainDisabled,
+  onPlayAgain,
+  onLeave,
+}: WinScreenProps) {
   const particles = confettiBurst(CONFETTI_COUNT);
 
   return (
@@ -70,6 +77,14 @@ export function WinScreen({ winnerName, isHost, playAgainDisabled, onPlayAgain }
       ) : (
         <p className="text-sm text-neutral-300">Aguardando o anfitrião começar uma nova rodada…</p>
       )}
+
+      <button
+        type="button"
+        onClick={onLeave}
+        className="rounded-full border border-white/30 px-6 py-2 font-semibold text-white/80 transition hover:bg-white/10"
+      >
+        Sair da sala
+      </button>
     </div>
   );
 }
