@@ -24,6 +24,7 @@ import { EventLog } from "./EventLog.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
 import { RotatePrompt } from "./RotatePrompt.js";
+import { TurnHud } from "./TurnHud.js";
 import { WinScreen } from "./WinScreen.js";
 import { useGameStore } from "./gameStore.js";
 import { opponentSeatPositions } from "./layout.js";
@@ -184,6 +185,8 @@ export function Table() {
 
       <EventLog players={view.players} playHistory={view.playHistory} />
 
+      <TurnHud isYourTurn={isYourTurn} turnsRemaining={view.turnsRemaining} />
+
       {view.winner !== null && (
         <WinScreen
           winnerName={view.players[view.winner]!.id}
@@ -240,7 +243,6 @@ export function Table() {
         <Hand
           hand={handForDisplay}
           canPlay={isYourTurn}
-          turnsRemaining={view.turnsRemaining}
           isSimplePlayable={(cardId: CardId) => classifySinglePlay(cardId).kind === "simple"}
           onSimplePlay={(card) => {
             const play = classifySinglePlay(card.id);

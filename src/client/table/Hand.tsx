@@ -1,9 +1,9 @@
 // The active seat's hand: fanned arc, hover/touch lift, drag-to-play onto discard,
 // tap-to-select + Play button fallback, sideways reorder (ticket 10), combo multi-select —
 // tapping several cards lifts them together, then Play routes by selection size (ticket 11) —
-// a "Your turn" label while it's this player's turn (ticket 21), and selected
-// cards staging into their own row above the hand, in selection order, while the rest of the
-// hand re-fans to fill the gap (ticket 24).
+// and selected cards staging into their own row above the hand, in selection order, while the
+// rest of the hand re-fans to fill the gap (ticket 24). The "it's your turn" indicator itself
+// lives in the HUD (TurnHud.tsx) instead of here, so it stays clear of the cards at any hand size.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, type PanInfo } from "motion/react";
@@ -16,9 +16,6 @@ import { classifySelectionShape, classifySinglePlay } from "./selection.js";
 export interface HandProps {
   hand: Card[];
   canPlay: boolean;
-  /** How many turns in a row this player owes (stacked Attacks) — 1 in the common case. Shown
-   * next to the "Sua vez" label as a "Nx" badge whenever it's more than 1. */
-  turnsRemaining: number;
   /** Whether a single card can be dragged straight onto the discard pile for an instant play. */
   isSimplePlayable: (cardId: CardId) => boolean;
   onSimplePlay: (card: Card) => void;
@@ -33,7 +30,6 @@ const PLAY_DRAG_THRESHOLD = -70;
 export function Hand({
   hand,
   canPlay,
-  turnsRemaining,
   isSimplePlayable,
   onSimplePlay,
   onPlaySelection,
@@ -111,24 +107,7 @@ export function Hand({
       : selectionShape.size === 2 || selectionShape.size === 3 || selectionShape.size === 5;
 
   return (
-    <div className="relative flex flex-col items-center gap-3 rounded-xl p-2">
-      {canPlay && (
-        // Sits to the left of the hand, vertically centered, instead of stacked above the fan —
-        // with cards this large, a label above the fan rode up near the table's center and
-        // overlapped the discard pile. Pinned outside the hand's own bounding box so it never
-        // collides with the cards (or anything at the table's center) regardless of hand size.
-        <span className="absolute right-full top-1/2 mr-3 flex -translate-y-1/2 items-center gap-2 whitespace-nowrap">
-          <span className="text-sm font-semibold text-amber-300">Sua vez</span>
-          {turnsRemaining > 1 && (
-            <span
-              className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white shadow"
-              title={`Você deve jogar ${turnsRemaining} turnos seguidos (ataques acumulados)`}
-            >
-              {turnsRemaining}x
-            </span>
-          )}
-        </span>
-      )}
+    <div className="flex flex-col items-center gap-3 rounded-xl p-2">
       <div className="relative flex h-80 items-end justify-center" style={{ perspective: 800 }}>
         {orderedHand.map((card) => {
           const isSelected = selectedUids.includes(card.uid);
