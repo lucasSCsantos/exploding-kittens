@@ -34,7 +34,7 @@ export function TargetPicker({ title, view, onSelect, onCancel }: TargetPickerPr
         onClick={onCancel}
         className="rounded-full bg-neutral-100 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
       >
-        Cancel
+        Cancelar
       </button>
     </div>
   );

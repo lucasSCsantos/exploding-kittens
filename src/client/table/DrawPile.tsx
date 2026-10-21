@@ -5,6 +5,7 @@
 import { forwardRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { getCardBackImage } from "../cards.js";
+import { NORMAL_CARD_SIZE_CLASS } from "./CardFace.js";
 import { drawPileLayers } from "./layout.js";
 import { cardFlipSpring } from "./motion.js";
 
@@ -35,7 +36,7 @@ export const DrawPile = forwardRef<HTMLDivElement, DrawPileProps>(function DrawP
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div ref={ref} className="relative h-36 w-24" style={{ perspective: 800 }}>
+      <div ref={ref} className={`relative ${NORMAL_CARD_SIZE_CLASS}`} style={{ perspective: 800 }}>
         {Array.from({ length: layers }, (_, i) => (
           <img
             key={i}
@@ -43,7 +44,7 @@ export const DrawPile = forwardRef<HTMLDivElement, DrawPileProps>(function DrawP
             alt=""
             aria-hidden
             draggable={false}
-            className="absolute h-36 w-24 max-w-none select-none rounded-lg object-cover shadow-md"
+            className={`absolute ${NORMAL_CARD_SIZE_CLASS} max-w-none select-none rounded-lg object-cover shadow-md`}
             style={{ top: -i * 1.5, left: -i * 1.5 }}
           />
         ))}
@@ -51,7 +52,7 @@ export const DrawPile = forwardRef<HTMLDivElement, DrawPileProps>(function DrawP
         {deckSize > 0 && (
           <motion.button
             type="button"
-            aria-label="Draw a card"
+            aria-label="Comprar uma carta"
             disabled={!canDraw}
             onClick={handleDraw}
             drag
@@ -73,22 +74,22 @@ export const DrawPile = forwardRef<HTMLDivElement, DrawPileProps>(function DrawP
                   animate={{ rotateY: 180 }}
                   exit={{ opacity: 0 }}
                   transition={cardFlipSpring(FLIP_DURATION_MS / 1000)}
-                  className="absolute inset-0 h-36 w-24 max-w-none select-none rounded-lg object-cover shadow-xl"
+                  className={`absolute inset-0 ${NORMAL_CARD_SIZE_CLASS} max-w-none select-none rounded-lg object-cover shadow-xl`}
                 />
               )}
             </AnimatePresence>
             {!flipping && (
               <img
                 src={backImage}
-                alt="Draw pile"
+                alt="Monte de compra"
                 draggable={false}
-                className="h-36 w-24 max-w-none select-none rounded-lg object-cover shadow-xl"
+                className={`${NORMAL_CARD_SIZE_CLASS} max-w-none select-none rounded-lg object-cover shadow-xl`}
               />
             )}
           </motion.button>
         )}
       </div>
-      <span className="text-sm text-neutral-300">{deckSize} left</span>
+      <span className="text-sm text-neutral-300">{deckSize} restantes</span>
     </div>
   );
 });

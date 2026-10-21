@@ -11,7 +11,7 @@ function entry(overrides: Partial<PlayHistoryEntry>): PlayHistoryEntry {
 describe("describeHistoryEntry", () => {
   it("describes a simple play", () => {
     expect(describeHistoryEntry(entry({ effect: { kind: "SKIP" } }), players)).toBe(
-      "Ana played Skip",
+      "Ana jogou Pular",
     );
   });
 
@@ -21,7 +21,7 @@ describe("describeHistoryEntry", () => {
         entry({ player: 1, effect: { kind: "TARGETED_ATTACK", target: 0 } }),
         players,
       ),
-    ).toBe("Bob played Targeted Attack on Ana");
+    ).toBe("Bob jogou Ataque Direcionado em Ana");
   });
 
   it("names the card asked for in a triple", () => {
@@ -30,16 +30,16 @@ describe("describeHistoryEntry", () => {
         entry({ effect: { kind: "TRIPLE", target: 1, namedCard: "SKIP" } }),
         players,
       ),
-    ).toBe("Ana played a triple, asking Bob for Skip");
+    ).toBe("Ana jogou um trio, pedindo Pular para Bob");
   });
 
   it("appends a noped marker when the play was cancelled", () => {
     expect(describeHistoryEntry(entry({ effect: { kind: "SHUFFLE" }, noped: true }), players)).toBe(
-      "Ana played Shuffle — Noped!",
+      "Ana jogou Embaralhar — Cancelado!",
     );
   });
 
   it("falls back to a generic label for an unknown player index", () => {
-    expect(describeHistoryEntry(entry({ player: 5 }), players)).toBe("Player 5 played Skip");
+    expect(describeHistoryEntry(entry({ player: 5 }), players)).toBe("Jogador 5 jogou Pular");
   });
 });

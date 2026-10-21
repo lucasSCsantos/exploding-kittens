@@ -124,12 +124,23 @@ function encodeWavDataUri(samples: Float32Array): string {
   return `data:audio/wav;base64,${btoa(binary)}`;
 }
 
+/** Per-sound playback volume (Howler default is 1.0 for anything left unset here). `swish` plays
+ * on every NOPE_WINDOW open — including each auto-pass in a run of several in a row — so at full
+ * volume a quick back-to-back sequence reads as one loud, grating noise rather than a subtle cue. */
+const VOLUME: Partial<Record<SoundName, number>> = {
+  swish: 0.35,
+};
+
 const howls = new Map<SoundName, Howl>();
 
 function getHowl(name: SoundName): Howl {
   const cached = howls.get(name);
   if (cached) return cached;
-  const howl = new Howl({ src: [encodeWavDataUri(GENERATORS[name]())], format: ["wav"] });
+  const howl = new Howl({
+    src: [encodeWavDataUri(GENERATORS[name]())],
+    format: ["wav"],
+    volume: VOLUME[name] ?? 1,
+  });
   howls.set(name, howl);
   return howl;
 }

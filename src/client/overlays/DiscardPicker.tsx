@@ -12,7 +12,7 @@ export interface DiscardPickerProps {
 export function DiscardPicker({ discard, onSelect, onCancel }: DiscardPickerProps) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/70 p-4">
-      <h2 className="text-xl font-semibold text-white">Take a card from the discard pile</h2>
+      <h2 className="text-xl font-semibold text-white">Pegue uma carta do monte de descarte</h2>
       <div className="flex max-h-[60vh] max-w-4xl flex-wrap justify-center gap-2 overflow-auto">
         {discard.map((card) => (
           <button key={card.uid} type="button" onClick={() => onSelect(card.uid)}>
@@ -25,7 +25,7 @@ export function DiscardPicker({ discard, onSelect, onCancel }: DiscardPickerProp
         onClick={onCancel}
         className="rounded-full bg-neutral-100 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
       >
-        Cancel
+        Cancelar
       </button>
     </div>
   );

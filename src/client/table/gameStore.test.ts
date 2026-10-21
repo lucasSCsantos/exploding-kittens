@@ -5,6 +5,9 @@ type Handler = (...args: unknown[]) => void;
 const handlers = new Map<string, Handler>();
 const emitted: { event: string; payload: unknown; ack?: Handler }[] = [];
 
+let disconnectCalls = 0;
+let connectCalls = 0;
+
 vi.mock("../socket.js", () => ({
   socket: {
     on: (event: string, cb: Handler) => {
@@ -12,6 +15,12 @@ vi.mock("../socket.js", () => ({
     },
     emit: (event: string, payload: unknown, ack?: Handler) => {
       emitted.push({ event, payload, ack });
+    },
+    disconnect: () => {
+      disconnectCalls++;
+    },
+    connect: () => {
+      connectCalls++;
     },
   },
 }));
@@ -43,6 +52,8 @@ beforeEach(() => {
   emitted.length = 0;
   savedSessions.length = 0;
   clearSessionCalls = 0;
+  disconnectCalls = 0;
+  connectCalls = 0;
   useGameStore.setState({
     code: null,
     playerId: null,
@@ -230,5 +241,42 @@ describe("playAgain", () => {
     lastEmit().ack!({ ok: false, error: "only the host can start a new round" });
 
     expect(useGameStore.getState().lastError).toBe("only the host can start a new round");
+  });
+});
+
+describe("leaveRoom", () => {
+  it("clears the session, drops the room binding, and resets to pre-join state", () => {
+    useGameStore.setState({
+      code: "ABCD",
+      playerId: "Alice",
+      name: "Alice",
+      token: "secret",
+      hostId: "Alice",
+      lobbyPlayers: [{ id: "Alice", name: "Alice", connected: true }],
+      view: { you: 0 } as never,
+      lastError: "stale error",
+      lastElimination: { seat: 0, card: null },
+      lastTransfer: { fromSeat: 0, toSeat: 1, card: null },
+      lastDraw: { kind: "own", seat: 0, card: null },
+    });
+
+    useGameStore.getState().leaveRoom();
+
+    expect(clearSessionCalls).toBe(1);
+    expect(disconnectCalls).toBe(1);
+    expect(connectCalls).toBe(1);
+    expect(useGameStore.getState()).toMatchObject({
+      code: null,
+      playerId: null,
+      name: null,
+      token: null,
+      hostId: null,
+      lobbyPlayers: [],
+      view: null,
+      lastError: null,
+      lastElimination: null,
+      lastTransfer: null,
+      lastDraw: null,
+    });
   });
 });

@@ -19,7 +19,7 @@ export function AlterTheFuture({ cards, onConfirm, onCancel }: AlterTheFuturePro
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/80">
-      <h2 className="text-xl font-semibold text-white">Drag to reorder the next {cards.length} cards</h2>
+      <h2 className="text-xl font-semibold text-white">Arraste para reordenar as próximas {cards.length} cartas</h2>
       <Reorder.Group
         axis="x"
         values={order}
@@ -43,14 +43,14 @@ export function AlterTheFuture({ cards, onConfirm, onCancel }: AlterTheFuturePro
           onClick={() => onConfirm(order.map((c) => c.uid))}
           className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
         >
-          Confirm order
+          Confirmar ordem
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded-full bg-neutral-100 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
         >
-          Cancel
+          Cancelar
         </button>
       </div>
     </div>

@@ -21,16 +21,16 @@ export function fanTransform(index: number, count: number): FanTransform {
 
   return {
     rotateDeg: offset * step,
-    translateX: offset * 20,
-    translateY: Math.abs(offset) * 7,
+    translateX: offset * 34,
+    translateY: Math.abs(offset) * 11,
   };
 }
 
 /** Horizontal gap (px) between staged cards in the row above the hand. */
-const STAGING_CARD_GAP = 56;
+const STAGING_CARD_GAP = 94;
 
 /** How far above the fanned hand the staging row sits (px; negative moves it up). */
-const STAGING_ROW_OFFSET_Y = -130;
+const STAGING_ROW_OFFSET_Y = -194;
 
 /**
  * Position of staged card `index` of `count` in the row above the hand, ordered by selection

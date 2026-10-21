@@ -20,12 +20,12 @@ export function EventLog({ players, playHistory }: EventLogProps) {
         onClick={() => setOpen((v) => !v)}
         className="rounded-full bg-black/50 px-3 py-1 text-xs text-white"
       >
-        {open ? "Hide log" : `Event log (${playHistory.length})`}
+        {open ? "Ocultar histórico" : `Histórico (${playHistory.length})`}
       </button>
 
       {open && (
         <ul className="max-h-64 w-56 overflow-y-auto rounded-lg bg-black/60 p-2 text-xs text-white">
-          {playHistory.length === 0 && <li className="text-white/50">No plays yet</li>}
+          {playHistory.length === 0 && <li className="text-white/50">Nenhuma jogada ainda</li>}
           {[...playHistory].reverse().map((entry, i) => (
             <li
               key={playHistory.length - 1 - i}

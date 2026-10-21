@@ -68,7 +68,7 @@ export function NopeWindow({ nopeDeadline, hand, onPlayNope, onWindowClosed }: N
             onClick={() => onPlayNope(nopeCard.uid)}
             className="rounded-full bg-red-500 px-8 py-3 text-lg font-bold text-white shadow-lg"
           >
-            NOPE!
+            NÃO!
           </button>
         )}
         <button
@@ -76,7 +76,7 @@ export function NopeWindow({ nopeDeadline, hand, onPlayNope, onWindowClosed }: N
           onClick={onWindowClosed}
           className="rounded-full bg-neutral-100 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
         >
-          Pass
+          Passar
         </button>
       </div>
     </div>

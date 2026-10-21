@@ -15,11 +15,12 @@ export interface DefuseReinsertProps {
 export function DefuseReinsert({ kitten, deckSize, onConfirm }: DefuseReinsertProps) {
   const [position, setPosition] = useState(0);
 
-  const label = position === 0 ? "Top" : position === deckSize ? "Bottom" : `Position ${position}`;
+  const label =
+    position === 0 ? "Topo" : position === deckSize ? "Fundo" : `Posição ${position}`;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/80">
-      <h2 className="text-xl font-semibold text-white">Slip the kitten back into the deck</h2>
+      <h2 className="text-xl font-semibold text-white">Deslize o gatinho de volta para o baralho</h2>
       <CardFace card={kitten} size="large" />
       {onConfirm ? (
         <>
@@ -33,19 +34,19 @@ export function DefuseReinsert({ kitten, deckSize, onConfirm }: DefuseReinsertPr
             className="w-64"
           />
           <div className="flex w-64 justify-between text-xs text-neutral-300">
-            <span>Top</span>
-            <span>Bottom</span>
+            <span>Topo</span>
+            <span>Fundo</span>
           </div>
           <button
             type="button"
             onClick={() => onConfirm(position)}
             className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 shadow-lg"
           >
-            Confirm
+            Confirmar
           </button>
         </>
       ) : (
-        <p className="text-amber-300">Waiting for them to choose where it goes back in…</p>
+        <p className="text-amber-300">Aguardando a escolha de onde ele volta…</p>
       )}
     </div>
   );

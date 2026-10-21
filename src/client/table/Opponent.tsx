@@ -60,7 +60,7 @@ export function Opponent({
           );
         })}
       </div>
-      <span className="text-xs text-neutral-300">{handSize} cards</span>
+      <span className="text-xs text-neutral-300">{handSize} cartas</span>
     </Container>
   );
 }

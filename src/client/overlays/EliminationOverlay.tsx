@@ -20,8 +20,8 @@ export function EliminationOverlay({ card }: EliminationOverlayProps) {
       >
         {card && <CardFace card={card} size="large" />}
       </motion.div>
-      <p className="text-3xl font-bold text-red-400">You've been eliminated!</p>
-      <p className="text-sm text-neutral-300">Watching the rest of the game…</p>
+      <p className="text-3xl font-bold text-red-400">Você foi eliminado!</p>
+      <p className="text-sm text-neutral-300">Acompanhando o resto do jogo…</p>
     </div>
   );
 }

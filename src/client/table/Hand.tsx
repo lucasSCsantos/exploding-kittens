@@ -1,9 +1,9 @@
 // The active seat's hand: fanned arc, hover/touch lift, drag-to-play onto discard,
 // tap-to-select + Play button fallback, sideways reorder (ticket 10), combo multi-select —
 // tapping several cards lifts them together, then Play routes by selection size (ticket 11) —
-// an amber ring/glow + "Your turn" label while it's this player's turn (ticket 21), and selected
-// cards staging into their own row above the hand, in selection order, while the rest of the
-// hand re-fans to fill the gap (ticket 24).
+// and selected cards staging into their own row above the hand, in selection order, while the
+// rest of the hand re-fans to fill the gap (ticket 24). The "it's your turn" indicator itself
+// lives in the HUD (TurnHud.tsx) instead of here, so it stays clear of the cards at any hand size.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, type PanInfo } from "motion/react";
@@ -12,7 +12,6 @@ import { CardFace } from "./CardFace.js";
 import { fanTransform, stagingRowPosition } from "./layout.js";
 import { CARD_SPRING } from "./motion.js";
 import { classifySelectionShape, classifySinglePlay } from "./selection.js";
-import { ACTIVE_TURN_GLOW, ACTIVE_TURN_RING } from "./turnHighlight.js";
 
 export interface HandProps {
   hand: Card[];
@@ -108,13 +107,8 @@ export function Hand({
       : selectionShape.size === 2 || selectionShape.size === 3 || selectionShape.size === 5;
 
   return (
-    <div
-      className={`flex flex-col items-center gap-3 rounded-xl p-2 transition ${
-        canPlay ? `${ACTIVE_TURN_GLOW} ${ACTIVE_TURN_RING}` : ""
-      }`}
-    >
-      {canPlay && <span className="text-sm font-semibold text-amber-300">Your turn</span>}
-      <div className="relative flex h-44 items-end justify-center" style={{ perspective: 800 }}>
+    <div className="flex flex-col items-center gap-3 rounded-xl p-2">
+      <div className="relative flex h-80 items-end justify-center" style={{ perspective: 800 }}>
         {orderedHand.map((card) => {
           const isSelected = selectedUids.includes(card.uid);
           const selectionIndex = selectedUids.indexOf(card.uid);
@@ -166,7 +160,7 @@ export function Hand({
           }}
           className="rounded-full bg-amber-500 px-6 py-2 font-semibold text-neutral-900 shadow-lg disabled:cursor-not-allowed disabled:bg-neutral-600 disabled:text-neutral-400"
         >
-          {selectedCards.length === 1 ? "Play" : `Play ${selectedCards.length} cards`}
+          {selectedCards.length === 1 ? "Jogar" : `Jogar ${selectedCards.length} cartas`}
         </button>
       )}
     </div>

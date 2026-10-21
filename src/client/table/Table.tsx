@@ -19,10 +19,12 @@ import { CardTransferFlight } from "./CardTransferFlight.js";
 import { DiscardPile } from "./DiscardPile.js";
 import { DrawPile } from "./DrawPile.js";
 import { EliminationFlash } from "./EliminationFlash.js";
+import { ErrorToast } from "./ErrorToast.js";
 import { EventLog } from "./EventLog.js";
 import { Hand } from "./Hand.js";
 import { Opponent } from "./Opponent.js";
 import { RotatePrompt } from "./RotatePrompt.js";
+import { TurnHud } from "./TurnHud.js";
 import { WinScreen } from "./WinScreen.js";
 import { useGameStore } from "./gameStore.js";
 import { opponentSeatPositions } from "./layout.js";
@@ -48,7 +50,7 @@ export function Table() {
   const dispatch = useGameStore((s) => s.dispatch);
   const peekTopOfDeck = useGameStore((s) => s.peekTopOfDeck);
   const playAgain = useGameStore((s) => s.playAgain);
-  const lastError = useGameStore((s) => s.lastError);
+  const leaveRoom = useGameStore((s) => s.leaveRoom);
   const view = useGameStore((s) => s.view);
   const playerId = useGameStore((s) => s.playerId);
   const hostId = useGameStore((s) => s.hostId);
@@ -184,6 +186,8 @@ export function Table() {
 
       <EventLog players={view.players} playHistory={view.playHistory} />
 
+      <TurnHud isYourTurn={isYourTurn} turnsRemaining={view.turnsRemaining} />
+
       {view.winner !== null && (
         <WinScreen
           winnerName={view.players[view.winner]!.id}
@@ -193,6 +197,7 @@ export function Table() {
             setPlayAgainClicked(true);
             playAgain();
           }}
+          onLeave={leaveRoom}
         />
       )}
 
@@ -289,7 +294,7 @@ export function Table() {
 
       {pendingPlay?.kind === "target" && (
         <TargetPicker
-          title="Choose a target"
+          title="Escolha um alvo"
           view={view}
           onSelect={(target) => {
             dispatch(pendingPlay.toAction(pendingPlay.cardUid, target));
@@ -301,7 +306,7 @@ export function Table() {
 
       {pendingPlay?.kind === "pairTarget" && (
         <TargetPicker
-          title="Steal a card from…"
+          title="Roube uma carta de…"
           view={view}
           onSelect={(target) => {
             dispatch({ type: "PLAY_PAIR", cardUids: pendingPlay.cardUids, target });
@@ -313,7 +318,7 @@ export function Table() {
 
       {pendingPlay?.kind === "tripleTarget" && (
         <TargetPicker
-          title="Choose a target"
+          title="Escolha um alvo"
           view={view}
           onSelect={(target) =>
             setPendingPlay({ kind: "tripleName", cardUids: pendingPlay.cardUids, target })
@@ -382,11 +387,7 @@ export function Table() {
         />
       )}
 
-      {lastError && (
-        <p className="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs text-red-300">
-          {lastError}
-        </p>
-      )}
+      <ErrorToast />
     </div>
   );
 }
